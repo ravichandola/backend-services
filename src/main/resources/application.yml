@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: payment
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/payment_db
+    username: root
+    password: root1234
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+razorpay:
+  key: rzp_test_S0y0c3WoqLlan3
+  secret: op3iuuxrlA0M8ANEoBoyYyMA
