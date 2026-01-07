@@ -1,17 +1,14 @@
 spring:
-  application:
-    name: payment
-
   datasource:
-    url: jdbc:mysql://localhost:3306/payment_db
-    username: root
-    password: root1234
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/appdb}
+    username: ${SPRING_DATASOURCE_USERNAME:appuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:apppass}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
 
-razorpay:
-  key: rzp_test_S0y0c3WoqLlan3
-  secret: op3iuuxrlA0M8ANEoBoyYyMA
+server:
+  port: 8080

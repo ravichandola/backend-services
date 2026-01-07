@@ -1,36 +1,89 @@
+# 💳 Payment Gateway Backend (Dockerized)
+
+A robust Spring Boot backend application for handling payment order creation using **Razorpay**, **MySQL 8.4**, and **Hibernate (JPA)**.
+
+This project is **fully Dockerized**, meaning no Java, MySQL, or Maven installation is required on your local machine.
+
+---
+
+## 🚀 Tech Stack
+
+| Component          | Technology                           |
+| :----------------- | :----------------------------------- |
+| **Java**           | 25 (Eclipse Temurin inside Docker)   |
+| **Spring Boot**    | 4.x                                  |
+| **Hibernate ORM**  | 7.x                                  |
+| **Database**       | MySQL 8.4                            |
+| **Build Tool**     | Maven Wrapper                        |
+| **Containerization** | Docker & Docker Compose             |
+| **Payment Gateway** | Razorpay (Test Mode)                 |
+
+---
+
 ## 🖥️ System Requirements
 
-Before setting up the project, ensure your system meets the following requirements:
+You only need the following installed:
+* ✅ **Docker Desktop**
+* ✅ **Docker Compose** (included with Docker Desktop)
+* ✅ **Git**
 
-### Software Requirements
-
-| Component | Required Version         |
-|--------|--------------------------|
-| Java | JDK 25 or higher         |
-| Maven | 3.8+ (or Maven Wrapper)  |
-| MySQL | 8.0+                     |
-| Git | Latest                   |
-| Postman | Latest (for API testing) |
-
-### External Services
-
-- **Razorpay Account**
-    - Test Mode enabled
-    - API Key ID and Secret Key available
-
-### Operating System
-
-- Windows 10 / 11
-- macOS
-- Linux (Ubuntu preferred)
+> **Note:** ❌ Java, MySQL, and Maven are **not** required on your host machine.
 
 ---
 
-## ⚙️ Project Setup & Installation
+## 📁 Project Structure
 
-Follow the steps below to set up and run the project locally.
+```text
+.
+├── Dockerfile              # Instructions to build the Spring Boot image
+├── docker-compose.yml      # Orchestrates the App and MySQL containers
+├── pom.xml                 # Project dependencies
+├── mvnw                    # Maven wrapper for Linux/macOS
+├── mvnw.cmd                # Maven wrapper for Windows
+├── src
+│   └── main
+│       ├── java            # Application source code
+│       └── resources
+│           └── application.yml # App configuration
+└── README.md
+```
 
 ---
+
+## ⚙️ Configuration Overview
+
+This project uses environment variables for configuration to ensure it is portable and secure.
+
+- `application.yml` → Declares the configuration structure and reads environment variables.
+- `docker-compose.yml` → Injects the actual values into the container.
+
+---
+
+## 🧾 application.yml
+
+```yaml
+spring:
+  application:
+    name: payment
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+razorpay:
+  key: ${RAZORPAY_KEY}
+  secret: ${RAZORPAY_SECRET}
+```
+
+---
+
+## ▶️ How to Run the Project
 
 ### 1️⃣ Clone the Repository
 
@@ -38,104 +91,50 @@ Follow the steps below to set up and run the project locally.
 git clone https://github.com/<your-username>/payment-gateway-backend.git
 cd payment-gateway-backend
 ```
-### 2️⃣ Configure Database (MySQL)
 
-Login to MySQL and create the database:
-
-```mysql
-CREATE DATABASE payment_db;
-```
-### ⚠️ Note:
-#### Do NOT create tables manually.
-Hibernate will auto-generate tables at runtime.
-
-### 3️⃣ Configure Application Properties
-```bash
-src/main/resources/application.yml
-```
-```yaml
-spring:
-application:
-name: payment-gateway
-
-datasource:
-url: jdbc:mysql://localhost:3306/payment_db
-username: root
-password: root
-
-jpa:
-hibernate:
-ddl-auto: update
-show-sql: true
-
-razorpay:
-key: rzp_test_xxxxx
-secret: xxxxx
-```
-### 🔐 Important Notes
-**Use Razorpay TEST keys only**
-
-**Do NOT commit real or live keys to GitHub**
-
-### 4️⃣ Build the Project
+### 2️⃣ Start the Application
 
 ```bash
-mvn clean install
-```
-#### This will:
-
-**Download dependencies**
-
-**Compile the project**
-
-**Run basic checks**
-
-### 5️⃣ Run the Application
-You can run the application using either method:
-```bash
-mvn spring-boot:run
-```
-**OR : IDE (IntelliJ / Eclipse)**
-
-**1. Open PaymentApplication.java**
-
-**2. Click Run**
-
-**Application will be running at:**
-
-```bash
-http://localhost:8080
+docker compose up --build
 ```
 
-## API Testing (Postman)
-### Create Order API
+⏳ The first run may take a few minutes as it downloads the base images and dependencies.
 
-**Endpoint**
+### 3️⃣ Verify Startup
 
-```bash
-POST /api/payments/create-order
+Watch the logs until you see:
+
+```
+Started PaymentApplication in X seconds
 ```
 
-**URL**
+### 4️⃣ Application URL
 
-```bash
-http://localhost:8080/api/payments/create-order
+The API will be available at: **http://localhost:8080**
+
+---
+
+## 🧪 API Testing (Postman)
+
+### Create Payment Order
+
+**Endpoint:** `POST /api/payments/create-order`
+
+**URL:** `http://localhost:8080/api/payments/create-order`
+
+**Headers:**
 ```
-
-**HEADERS**
-
-```bash
 Content-Type: application/json
 ```
 
-**Request Body**
-```json lines
+**Request Body:**
+```json
 {
   "amount": 500
 }
 ```
 
-**Successful Response**
+**Sample Response:**
 ```json
 {
   "orderId": "order_xxxxx",
@@ -146,14 +145,45 @@ Content-Type: application/json
 }
 ```
 
-### Notes for Developers
+---
 
-**1. JDBC URL is used only for DB connection**
+## 🗄️ Database Details
 
-**2. Hibernate (JPA) handles ORM internally**
+MySQL runs inside a Docker container. Hibernate is configured to automatically create and update tables.
 
-**3. No raw JDBC code is written**
+### Connect Using GUI (MySQL Workbench / DBeaver)
 
-**4. DTOs protect API contracts**
+| Field | Value      |
+| :---- | :--------- |
+| Host  | localhost  |
+| Port  | 3307       |
+| User  | root       |
+| Pass  | root1234   |
+| DB    | payment_db |
 
-**5. Service layer contains all business logic**
+---
+
+## 🔐 Razorpay Configuration
+
+The app uses Razorpay Test Keys.
+
+Keys are injected via Docker environment variables.
+
+> **Security Tip:** Never commit your live `RAZORPAY_SECRET` to a public repository.
+
+---
+
+## 🧹 Stop & Clean Up
+
+### Stop containers:
+
+```bash
+docker compose down
+```
+
+### Stop and remove all database data (Volumes):
+
+```bash
+docker compose down -v
+```
+
