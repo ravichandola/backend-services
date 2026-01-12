@@ -105,6 +105,83 @@ Fill in the **Connection** tab with these values:
 
 ---
 
+## 🌐 Connecting to Supabase Cloud Postgres
+
+You can also connect to Supabase from pgAdmin to view the cloud database.
+
+### Option A: Using Docker pgAdmin
+
+**Note:** Docker pgAdmin may not be able to reach external hosts. If connection fails, use Desktop pgAdmin (Option B).
+
+1. **Add Supabase Server:**
+
+   - Right-click **"Servers"** → **"Register" → "Server..."**
+   - **General Tab:**
+     - **Name:** `Supabase Cloud DB`
+   - **Connection Tab:**
+     | Field | Value |
+     | :----------------------- | :--------------------------------------------------------- |
+     | **Host name/address** | `aws-1-ap-south-1.pooler.supabase.com` |
+     | **Port** | `6543` |
+     | **Maintenance database** | `postgres` |
+     | **Username** | `postgres.kcykicebvvsshyirgldl` |
+     | **Password** | `Adminpetsupbase12` |
+   - Check **"Save password"**
+   - Click **"Save"**
+
+2. **Verify Connection:**
+   - Expand the server in left sidebar
+   - Navigate to: `Databases` → `postgres` → `Schemas` → `public` → `Tables`
+   - You should see `payment_order` and `payment_transaction` tables (after running migrations)
+
+### Option B: Using Desktop pgAdmin (Recommended for Supabase) ⭐
+
+Desktop pgAdmin works better for external databases.
+
+1. **Install Desktop pgAdmin:**
+
+   - Download from: https://www.pgadmin.org/download/
+
+2. **Add Supabase Server:**
+   - Right-click **"Servers"** → **"Register" → "Server..."**
+   - **General Tab:**
+     - **Name:** `Supabase Cloud DB`
+   - **Connection Tab:**
+     | Field | Value |
+     | :----------------------- | :--------------------------------------------------------- |
+     | **Host name/address** | `aws-1-ap-south-1.pooler.supabase.com` |
+     | **Port** | `6543` |
+     | **Maintenance database** | `postgres` |
+     | **Username** | `postgres.kcykicebvvsshyirgldl` |
+     | **Password** | `Adminpetsupbase12` |
+   - Check **"Save password"**
+   - Click **"Save"**
+
+### Creating Tables in Supabase
+
+Before you can see tables in Supabase, you need to run Flyway migrations:
+
+1. **Start the application** (defaults to Supabase):
+
+   ```bash
+   ./mvnw spring-boot:run
+   ```
+
+2. **Flyway will automatically:**
+
+   - Create `payment_order` table
+   - Create `payment_transaction` table
+   - Create all indexes
+
+3. **Verify in pgAdmin:**
+   - Connect to Supabase
+   - Navigate to: `postgres` → `Schemas` → `public` → `Tables`
+   - You should see the tables
+
+📖 **For detailed Supabase setup, see [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)**
+
+---
+
 ## ⚠️ Important Notes
 
 ### 🐳 Docker Network Connection
@@ -302,4 +379,7 @@ docker-compose up -d pgadmin
 
 ---
 
-**Need Help?** Check the [main README.md](./readme.md) for more information about the project setup.
+**Need Help?**
+
+- Check the [main README.md](../readme.md) for more information about the project setup
+- For Supabase setup details, see [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)

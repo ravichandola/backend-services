@@ -28,11 +28,13 @@ This project includes comprehensive documentation to help you understand and wor
 
 - **[Flow Documentation](./documentation/FLOW_DOCUMENTATION.md)** - Detailed explanation of the payment flow, API endpoints, request/response formats, error handling, and complete system architecture
 - **[pgAdmin Setup Guide](./documentation/PGADMIN_SETUP.md)** - Step-by-step guide for configuring and using pgAdmin 4 (Docker container) to manage your PostgreSQL database
+- **[Supabase Setup Guide](./documentation/SUPABASE_SETUP.md)** - Complete guide for setting up Supabase Cloud Postgres, running migrations, and connecting via pgAdmin
 
 > **Quick Links:**
 >
 > - For understanding the payment flow and API details → [FLOW_DOCUMENTATION.md](./documentation/FLOW_DOCUMENTATION.md)
 > - For setting up and connecting to pgAdmin → [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md)
+> - For Supabase database setup and connection → [SUPABASE_SETUP.md](./documentation/SUPABASE_SETUP.md)
 
 ---
 
@@ -422,13 +424,19 @@ This project uses environment variables for configuration to ensure it is portab
 
 ## 🧾 application.yml
 
+The application uses **Spring Profiles** to support multiple database configurations:
+
+- **`prod` profile (DEFAULT)**: Connects to **Supabase Cloud Postgres** (Production)
+- **`dev` profile**: Connects to **Local Docker Postgres** (Development/Testing)
+
 ```yaml
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:prod} # Default: prod (Supabase)
+
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/appdb}
-    username: ${SPRING_DATASOURCE_USERNAME:appuser}
-    password: ${SPRING_DATASOURCE_PASSWORD:apppass}
     driver-class-name: org.postgresql.Driver
+    # ... Hikari connection pool settings ...
 
   jpa:
     hibernate:
@@ -439,17 +447,43 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
-    validate-on-migrate: true
+---
+# PROD Profile - Supabase Cloud Postgres (DEFAULT)
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres.kcykicebvvsshyirgldl}
+    password: ${SPRING_DATASOURCE_PASSWORD:Adminpetsupbase12}
+
+---
+# DEV Profile - Local Docker Postgres
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/appdb}
+    username: ${SPRING_DATASOURCE_USERNAME:appuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:apppass}
 
 server:
-  port: 8080
+  port: 8081
 
 razorpay:
   key: ${RAZORPAY_KEY:your-razorpay-key-id}
   secret: ${RAZORPAY_SECRET:your-razorpay-secret-key}
 ```
 
-> **Note:** The configuration uses environment variables with default values. For production, set `RAZORPAY_KEY` and `RAZORPAY_SECRET` environment variables or use a `.env` file.
+> **Note:**
+>
+> - **Default behavior**: App connects to **Supabase Cloud Postgres** (prod profile)
+> - **Local development**: Use `SPRING_PROFILES_ACTIVE=dev` to connect to Docker Postgres
+> - **Docker Compose**: Automatically uses `dev` profile to connect to local Postgres container
 
 ---
 
@@ -503,10 +537,14 @@ Add your Razorpay credentials to the `.env` file:
 RAZORPAY_KEY=rzp_test_xxxxxxxxxxxxx
 RAZORPAY_SECRET=your_razorpay_secret_key_here
 
-# Database Configuration (Optional - has defaults)
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/appdb
-SPRING_DATASOURCE_USERNAME=appuser
-SPRING_DATASOURCE_PASSWORD=apppass
+# Database Configuration (Optional - defaults to Supabase Cloud Postgres)
+# For Supabase (Production/Default):
+SPRING_DATASOURCE_URL=jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres
+SPRING_DATASOURCE_USERNAME=postgres.kcykicebvvsshyirgldl
+SPRING_DATASOURCE_PASSWORD=Adminpetsupbase12
+
+# To use local Docker Postgres instead, set:
+# SPRING_PROFILES_ACTIVE=dev
 ```
 
 **How to get Razorpay Keys:**
@@ -908,13 +946,83 @@ Payment verified successfully
 
 ---
 
-## 🗄️ Database Details
+## 🗄️ Database Configuration
 
-PostgreSQL runs inside a Docker container. Flyway is configured to manage database migrations automatically.
+The application supports **two database options** using Spring Profiles:
+
+### 🌐 Option 1: Supabase Cloud Postgres (Default/Production)
+
+**Profile:** `prod` (default)
+
+- **Host:** `aws-1-ap-south-1.pooler.supabase.com`
+- **Port:** `6543` (pgBouncer connection pooler)
+- **Database:** `postgres`
+- **Username:** `postgres.kcykicebvvsshyirgldl`
+- **Password:** `Adminpetsupbase12`
+
+**When to use:**
+
+- ✅ Production deployments
+- ✅ Team collaboration
+- ✅ No local setup needed
+- ✅ Shared database for testing
+
+**How to use:**
+
+- Just run the app - it defaults to Supabase
+- Or explicitly: `SPRING_PROFILES_ACTIVE=prod`
+
+### 🐳 Option 2: Local Docker Postgres (Development/Testing)
+
+**Profile:** `dev`
+
+- **Host:** `localhost` (or `postgres` from Docker network)
+- **Port:** `5433` (host) / `5432` (container)
+- **Database:** `appdb`
+- **Username:** `appuser`
+- **Password:** `apppass`
+
+**When to use:**
+
+- ✅ Local development
+- ✅ Testing with mock data
+- ✅ Offline development
+- ✅ Data isolation
+
+**How to use:**
+
+- Set profile: `SPRING_PROFILES_ACTIVE=dev`
+- Or use Docker Compose (automatically uses `dev` profile)
+
+### 🔄 Switching Between Databases
+
+**Use Supabase (Cloud):**
+
+```bash
+# Default - no action needed
+./mvnw spring-boot:run
+
+# Or explicitly
+SPRING_PROFILES_ACTIVE=prod ./mvnw spring-boot:run
+```
+
+**Use Local Docker Postgres:**
+
+```bash
+# Set dev profile
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+
+# Or use Docker Compose (automatically uses dev)
+docker-compose up --build
+```
+
+### 📊 Database Details
+
+Flyway is configured to manage database migrations automatically for both profiles.
 
 ### Connect Using GUI Tools
 
-#### Option 1: pgAdmin (Docker Container) - Recommended ⭐
+#### Option 1: pgAdmin (Docker Container) - For Local Postgres ⭐
 
 **Quick Start:**
 
@@ -931,20 +1039,34 @@ PostgreSQL runs inside a Docker container. Flyway is configured to manage databa
 
 **Access pgAdmin:** `http://localhost:5050`
 
+> **Note:** pgAdmin in Docker only connects to local Docker Postgres. For Supabase, use external tools (see below).
+
 #### Option 2: External Tools (DBeaver / DataGrip / etc.)
 
-| Field | Value     |
+**For Local Docker Postgres:**
+| Field | Value |
 | :---- | :-------- |
-| Host  | localhost |
-| Port  | 5433      |
-| User  | appuser   |
-| Pass  | apppass   |
-| DB    | appdb     |
+| Host | localhost |
+| Port | 5433 |
+| User | appuser |
+| Pass | apppass |
+| DB | appdb |
 
-> **Important:** When connecting from Docker containers (like pgAdmin), use:
+**For Supabase Cloud Postgres:**
+| Field | Value |
+| :---- | :-------- |
+| Host | `aws-1-ap-south-1.pooler.supabase.com` |
+| Port | `6543` |
+| User | `postgres.kcykicebvvsshyirgldl` |
+| Pass | `Adminpetsupbase12` |
+| DB | `postgres` |
+
+> **Important:**
 >
-> - Host: `postgres` (service name, not localhost)
-> - Port: `5432` (container port, not 5433)
+> - When connecting from Docker containers (like pgAdmin), use:
+>   - Host: `postgres` (service name, not localhost)
+>   - Port: `5432` (container port, not 5433)
+> - For Supabase, always use port `6543` (pgBouncer pooler)
 
 ---
 
@@ -954,13 +1076,14 @@ PostgreSQL runs inside a Docker container. Flyway is configured to manage databa
 
 The application requires the following environment variables:
 
-| Variable                     | Description                                       | Example                                  |
-| :--------------------------- | :------------------------------------------------ | :--------------------------------------- |
-| `RAZORPAY_KEY`               | Razorpay Key ID (from Razorpay Dashboard)         | `rzp_test_xxxxx`                         |
-| `RAZORPAY_SECRET`            | Razorpay Secret Key (from Razorpay Dashboard)     | `your-secret-key`                        |
-| `SPRING_DATASOURCE_URL`      | PostgreSQL connection URL (optional, has default) | `jdbc:postgresql://localhost:5433/appdb` |
-| `SPRING_DATASOURCE_USERNAME` | Database username (optional, has default)         | `appuser`                                |
-| `SPRING_DATASOURCE_PASSWORD` | Database password (optional, has default)         | `apppass`                                |
+| Variable                     | Description                                                    | Example                                                                |
+| :--------------------------- | :------------------------------------------------------------- | :--------------------------------------------------------------------- |
+| `RAZORPAY_KEY`               | Razorpay Key ID (from Razorpay Dashboard)                      | `rzp_test_xxxxx`                                                       |
+| `RAZORPAY_SECRET`            | Razorpay Secret Key (from Razorpay Dashboard)                  | `your-secret-key`                                                      |
+| `SPRING_PROFILES_ACTIVE`     | Spring profile to use (optional, defaults to `prod`)           | `prod` (Supabase) or `dev` (Local Docker)                              |
+| `SPRING_DATASOURCE_URL`      | PostgreSQL connection URL (optional, has defaults per profile) | `jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres` |
+| `SPRING_DATASOURCE_USERNAME` | Database username (optional, has defaults per profile)         | `postgres.kcykicebvvsshyirgldl` (Supabase) or `appuser` (Local)        |
+| `SPRING_DATASOURCE_PASSWORD` | Database password (optional, has defaults per profile)         | `Adminpetsupbase12` (Supabase) or `apppass` (Local)                    |
 
 ### Setting Environment Variables
 
@@ -969,11 +1092,24 @@ The application requires the following environment variables:
 Create a `.env` file in the project root:
 
 ```env
+# Razorpay Configuration
 RAZORPAY_KEY=rzp_test_xxxxx
 RAZORPAY_SECRET=your-secret-key
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/appdb
-SPRING_DATASOURCE_USERNAME=appuser
-SPRING_DATASOURCE_PASSWORD=apppass
+
+# Database Configuration
+# Default: Uses Supabase Cloud Postgres (prod profile)
+# To use local Docker Postgres, set: SPRING_PROFILES_ACTIVE=dev
+
+# Supabase (Default/Production)
+SPRING_DATASOURCE_URL=jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres
+SPRING_DATASOURCE_USERNAME=postgres.kcykicebvvsshyirgldl
+SPRING_DATASOURCE_PASSWORD=Adminpetsupbase12
+
+# Or for Local Docker Postgres (Development)
+# SPRING_PROFILES_ACTIVE=dev
+# SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/appdb
+# SPRING_DATASOURCE_USERNAME=appuser
+# SPRING_DATASOURCE_PASSWORD=apppass
 ```
 
 The application automatically loads `.env` file using `DotenvApplicationContextInitializer`.
