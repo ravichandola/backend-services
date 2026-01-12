@@ -1,36 +1,55 @@
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: mysql-db
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-db
+    restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root1234
-      MYSQL_DATABASE: payment_db
-      MYSQL_ROOT_HOST: "%"
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
     ports:
-      - "3307:3306"
+      - "5433:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U appuser -d appdb"]
       interval: 10s
       timeout: 5s
       retries: 10
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
   app:
     build: .
     container_name: springboot-app
+    restart: always
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/payment_db
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root1234
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: apppass
 
-      RAZORPAY_KEY: rzp_test_S0y0c3WoqLlan3
-      RAZORPAY_SECRET: op3iuuxrlA0M8ANEoBoyYyMA
+      RAZORPAY_KEY: ${RAZORPAY_KEY}
+      RAZORPAY_SECRET: ${RAZORPAY_SECRET}
 
 volumes:
-  mysql_data:
+  postgres_data:
+  pgadmin_data:
