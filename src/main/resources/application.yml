@@ -4,11 +4,21 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:appuser}
     password: ${SPRING_DATASOURCE_PASSWORD:apppass}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 600000
+      connection-test-query: SELECT 1
 
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   flyway:
     enabled: true
@@ -17,7 +27,7 @@ spring:
     validate-on-migrate: true
 
 server:
-  port: 8080
+  port: 8081
 
 razorpay:
   key: ${RAZORPAY_KEY:your-razorpay-key-id}

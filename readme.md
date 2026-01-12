@@ -22,6 +22,20 @@ This project is **fully Dockerized**, meaning no Java, PostgreSQL, or Maven inst
 
 ---
 
+## 📚 Documentation
+
+This project includes comprehensive documentation to help you understand and work with the codebase:
+
+- **[Flow Documentation](./documentation/FLOW_DOCUMENTATION.md)** - Detailed explanation of the payment flow, API endpoints, request/response formats, error handling, and complete system architecture
+- **[pgAdmin Setup Guide](./documentation/PGADMIN_SETUP.md)** - Step-by-step guide for configuring and using pgAdmin 4 (Docker container) to manage your PostgreSQL database
+
+> **Quick Links:**
+>
+> - For understanding the payment flow and API details → [FLOW_DOCUMENTATION.md](./documentation/FLOW_DOCUMENTATION.md)
+> - For setting up and connecting to pgAdmin → [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md)
+
+---
+
 ## ✨ Features Implemented
 
 This branch includes a complete payment gateway integration with the following features:
@@ -270,6 +284,102 @@ Response:
 
 ---
 
+## 🔄 Branch Changes: Database Migration to PostgreSQL
+
+This branch includes significant changes migrating from MySQL to PostgreSQL and adding pgAdmin for database management.
+
+### 📋 Changes Summary
+
+#### 1. **Database Migration: MySQL → PostgreSQL**
+
+- **Previous:** MySQL 8.4 database
+- **Current:** PostgreSQL 16 Alpine
+- **Port:** Changed from 3307 to 5433 (host) / 5432 (container)
+- **Driver:** Updated from MySQL driver to PostgreSQL driver
+- **Connection URL:** Updated to `jdbc:postgresql://localhost:5433/appdb`
+
+#### 2. **pgAdmin Integration**
+
+- Added pgAdmin 4 container for database management
+- Accessible at `http://localhost:5050`
+- Pre-configured with default credentials
+- See [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md) for detailed setup instructions
+
+#### 3. **Connection Pool Improvements**
+
+- Added HikariCP connection pool configuration
+- Connection timeout: 30 seconds (handles database startup delays)
+- Maximum pool size: 10 connections
+- Minimum idle: 5 connections
+- Connection test query: `SELECT 1` for health checks
+- Improved connection lifecycle management
+
+#### 4. **Server Port Change**
+
+- Changed from port `8080` to `8081` to avoid conflicts
+- Updated in `application.yml`
+- API endpoints now accessible at `http://localhost:8081`
+
+#### 5. **Docker Compose Updates**
+
+- Added `pgadmin` service with health check dependencies
+- PostgreSQL service with health checks
+- Proper service dependencies (app waits for database to be healthy)
+- Volume persistence for both PostgreSQL and pgAdmin data
+
+### 🔧 Configuration Changes
+
+**Before (MySQL):**
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3307/appdb
+    driver-class-name: com.mysql.cj.jdbc.Driver
+```
+
+**After (PostgreSQL):**
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/appdb
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-test-query: SELECT 1
+```
+
+### 📝 Migration Notes
+
+- **Database Schema:** Flyway migrations updated for PostgreSQL syntax
+- **Data Types:** Changed from MySQL-specific types to PostgreSQL equivalents
+- **Indexes:** Updated index creation syntax for PostgreSQL
+- **Connection Handling:** Improved with HikariCP pool configuration
+
+### 🚀 Running the Updated Setup
+
+1. **Start all services:**
+
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Access the application:**
+
+   - API: `http://localhost:8081`
+   - pgAdmin: `http://localhost:5050`
+
+3. **Connect to database:**
+   - From host machine: `localhost:5433`
+   - From Docker containers: `postgres:5432` (service name)
+
+For detailed pgAdmin setup instructions, see [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md).
+
+---
+
 ## 🖥️ System Requirements
 
 You only need the following installed:
@@ -278,7 +388,7 @@ You only need the following installed:
 - ✅ **Docker Compose** (included with Docker Desktop)
 - ✅ **Git**
 
-> **Note:** ❌ Java, MySQL, and Maven are **not** required on your host machine.
+> **Note:** ❌ Java, PostgreSQL, and Maven are **not** required on your host machine.
 
 ---
 
@@ -287,7 +397,7 @@ You only need the following installed:
 ```text
 .
 ├── Dockerfile              # Instructions to build the Spring Boot image
-├── docker-compose.yml      # Orchestrates the App and MySQL containers
+├── docker-compose.yml      # Orchestrates the App, PostgreSQL, and pgAdmin containers
 ├── pom.xml                 # Project dependencies
 ├── mvnw                    # Maven wrapper for Linux/macOS
 ├── mvnw.cmd                # Maven wrapper for Windows
@@ -343,34 +453,392 @@ razorpay:
 
 ---
 
-## ▶️ How to Run the Project
+## ▶️ Complete Setup Guide
 
-### 1️⃣ Clone the Repository
+This section provides a step-by-step guide to set up and run the Payment Gateway Backend project from scratch.
+
+### 📋 Prerequisites Checklist
+
+Before starting, ensure you have:
+
+- [ ] **Docker Desktop** installed and running
+  - Download from: https://www.docker.com/products/docker-desktop
+  - Verify installation: `docker --version` and `docker-compose --version`
+- [ ] **Git** installed (for cloning the repository)
+- [ ] **Razorpay Account** with API keys
+  - Sign up at: https://razorpay.com/
+  - Get test keys from: https://dashboard.razorpay.com/app/keys
+
+> **Note:** You do NOT need Java, Maven, or PostgreSQL installed on your machine. Everything runs in Docker containers.
+
+---
+
+### 🚀 Step-by-Step Setup
+
+#### Step 1: Clone the Repository
 
 ```bash
 git clone https://github.com/<your-username>/payment-gateway-backend.git
 cd payment-gateway-backend
 ```
 
-### 2️⃣ Start the Application
+Or if you already have the repository:
 
 ```bash
-docker compose up --build
+cd payment-gateway-backend
 ```
 
-⏳ The first run may take a few minutes as it downloads the base images and dependencies.
+#### Step 2: Configure Environment Variables
 
-### 3️⃣ Verify Startup
+Create a `.env` file in the project root directory:
 
-Watch the logs until you see:
-
-```
-Started PaymentApplication in X seconds
+```bash
+touch .env
 ```
 
-### 4️⃣ Application URL
+Add your Razorpay credentials to the `.env` file:
 
-The API will be available at: **http://localhost:8080**
+```env
+# Razorpay API Credentials (Required)
+RAZORPAY_KEY=rzp_test_xxxxxxxxxxxxx
+RAZORPAY_SECRET=your_razorpay_secret_key_here
+
+# Database Configuration (Optional - has defaults)
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/appdb
+SPRING_DATASOURCE_USERNAME=appuser
+SPRING_DATASOURCE_PASSWORD=apppass
+```
+
+**How to get Razorpay Keys:**
+
+1. Log in to [Razorpay Dashboard](https://dashboard.razorpay.com/)
+2. Navigate to **Settings** → **API Keys**
+3. Click **Generate Test Key** (for development)
+4. Copy the **Key ID** and **Key Secret**
+5. Paste them in your `.env` file
+
+> **Security Note:** The `.env` file is already in `.gitignore` and will not be committed to version control.
+
+#### Step 3: Start Docker Desktop
+
+1. Open Docker Desktop application
+2. Wait until Docker Desktop is fully started (whale icon in system tray)
+3. Verify Docker is running:
+   ```bash
+   docker ps
+   ```
+   Should show an empty list (no error messages)
+
+#### Step 4: Start All Services
+
+From the project root directory, run:
+
+```bash
+docker-compose up --build
+```
+
+**What this command does:**
+
+1. **Builds the Spring Boot application:**
+
+   - Uses the `Dockerfile` to build the application
+   - Downloads Java 25 JDK image
+   - Runs Maven to compile and package the application
+   - Creates a JAR file
+
+2. **Starts PostgreSQL database:**
+
+   - Pulls `postgres:16-alpine` image (if not already present)
+   - Creates `postgres-db` container
+   - Initializes database `appdb` with user `appuser`
+   - Waits for health check to pass
+
+3. **Starts pgAdmin:**
+
+   - Pulls `dpage/pgadmin4:latest` image
+   - Creates `pgadmin` container
+   - Waits for PostgreSQL to be healthy before starting
+
+4. **Starts Spring Boot application:**
+   - Builds application image
+   - Creates `springboot-app` container
+   - Waits for PostgreSQL to be healthy
+   - Runs database migrations (Flyway)
+   - Starts the application on port 8080
+
+**Expected Output:**
+
+```
+[+] Building 15.2s
+[+] Running 4/4
+ ✔ Network payment_default      Created
+ ✔ Container postgres-db        Started
+ ✔ Container pgadmin            Started
+ ✔ Container springboot-app     Started
+```
+
+#### Step 5: Monitor Startup Logs
+
+Watch the application logs to verify everything starts correctly:
+
+```bash
+docker-compose logs -f app
+```
+
+**Look for these success messages:**
+
+1. **Database connection:**
+
+   ```
+   HikariPool-1 - Starting...
+   HikariPool-1 - Start completed.
+   ```
+
+2. **Flyway migrations:**
+
+   ```
+   Flyway Community Edition 10.x.x
+   Successfully applied 2 migrations
+   ```
+
+3. **Application ready:**
+   ```
+   Started PaymentApplication in X.XXX seconds
+   ```
+
+**If you see errors:**
+
+- **Connection refused:** PostgreSQL container might not be ready yet. Wait 10-20 seconds and check again.
+- **Razorpay authentication failed:** Check your `.env` file credentials.
+- **Port already in use:** See [Troubleshooting](#-troubleshooting) section.
+
+#### Step 6: Verify All Services Are Running
+
+Open a new terminal and check container status:
+
+```bash
+docker-compose ps
+```
+
+**Expected output:**
+
+```
+NAME             STATUS                    PORTS
+postgres-db      Up X minutes (healthy)    0.0.0.0:5433->5432/tcp
+pgadmin          Up X minutes              0.0.0.0:5050->80/tcp
+springboot-app   Up X minutes              0.0.0.0:8080->8080/tcp
+```
+
+All containers should show `Up` status. PostgreSQL should show `(healthy)`.
+
+#### Step 7: Test the API
+
+**Option 1: Using curl**
+
+```bash
+curl -X POST http://localhost:8080/api/payments/create-order \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 500}'
+```
+
+**Option 2: Using Postman**
+
+1. Open Postman
+2. Create a new POST request
+3. URL: `http://localhost:8080/api/payments/create-order`
+4. Headers: `Content-Type: application/json`
+5. Body (raw JSON):
+   ```json
+   {
+     "amount": 500
+   }
+   ```
+6. Click **Send**
+
+**Expected Response:**
+
+```json
+{
+  "orderId": "order_xxxxx",
+  "amount": 500,
+  "currency": "INR",
+  "status": "created",
+  "receipt": "rcpt_xxxxx"
+}
+```
+
+#### Step 8: Access pgAdmin (Optional)
+
+1. Open browser: `http://localhost:5050`
+2. Login with:
+   - Email: `admin@local.com`
+   - Password: `admin123`
+3. Add PostgreSQL server (see [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md) for details)
+
+---
+
+### 🎯 Quick Start (TL;DR)
+
+For experienced users, here's the quick version:
+
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd payment-gateway-backend
+
+# 2. Create .env file with Razorpay keys
+echo "RAZORPAY_KEY=rzp_test_xxxxx" > .env
+echo "RAZORPAY_SECRET=your_secret" >> .env
+
+# 3. Start services
+docker-compose up --build
+
+# 4. Wait for "Started PaymentApplication" in logs
+# 5. Test API at http://localhost:8080/api/payments/create-order
+```
+
+---
+
+### 💻 Running Locally (Without Docker)
+
+If you prefer to run the application directly on your machine without Docker:
+
+#### Prerequisites for Local Development
+
+- **Java 25** (JDK) installed
+- **Maven** installed (or use Maven Wrapper: `./mvnw`)
+- **PostgreSQL 16** installed and running locally
+- **Razorpay API keys** configured
+
+#### Steps
+
+1. **Start PostgreSQL locally:**
+
+   ```bash
+   # On macOS (using Homebrew)
+   brew services start postgresql@16
+
+   # On Linux
+   sudo systemctl start postgresql
+
+   # Create database and user
+   psql -U postgres
+   CREATE DATABASE appdb;
+   CREATE USER appuser WITH PASSWORD 'apppass';
+   GRANT ALL PRIVILEGES ON DATABASE appdb TO appuser;
+   ```
+
+2. **Create `.env` file:**
+
+   ```env
+   RAZORPAY_KEY=rzp_test_xxxxx
+   RAZORPAY_SECRET=your_secret_key
+   SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/appdb
+   SPRING_DATASOURCE_USERNAME=appuser
+   SPRING_DATASOURCE_PASSWORD=apppass
+   ```
+
+3. **Run the application:**
+
+   ```bash
+   # Using Maven Wrapper
+   ./mvnw spring-boot:run
+
+   # Or using Maven (if installed)
+   mvn spring-boot:run
+   ```
+
+4. **Access the API:**
+   - API: `http://localhost:8080` (or port configured in `application.yml`)
+
+> **Note:** When running locally, the application connects to PostgreSQL on `localhost:5432` (default PostgreSQL port), not `5433`.
+
+---
+
+### 🔄 Running in Background (Detached Mode)
+
+To run containers in the background:
+
+```bash
+docker-compose up -d --build
+```
+
+View logs:
+
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f app
+docker-compose logs -f postgres
+docker-compose logs -f pgadmin
+```
+
+---
+
+### 🛑 Stopping the Application
+
+**Stop all containers:**
+
+```bash
+docker-compose down
+```
+
+**Stop and remove all data (including database):**
+
+```bash
+docker-compose down -v
+```
+
+> **Warning:** `-v` flag removes all volumes, including database data. Use with caution!
+
+---
+
+### 🔁 Restarting After Changes
+
+**After code changes:**
+
+1. Stop containers: `docker-compose down`
+2. Rebuild and start: `docker-compose up --build`
+
+**After configuration changes (application.yml, docker-compose.yml):**
+
+1. Stop containers: `docker-compose down`
+2. Start again: `docker-compose up --build`
+
+**After .env file changes:**
+
+1. Restart only the app container:
+   ```bash
+   docker-compose restart app
+   ```
+
+---
+
+### 📊 Service URLs & Ports
+
+Once everything is running, access services at:
+
+| Service        | URL                   | Credentials                |
+| :------------- | :-------------------- | :------------------------- |
+| **API**        | http://localhost:8080 | N/A                        |
+| **pgAdmin**    | http://localhost:5050 | admin@local.com / admin123 |
+| **PostgreSQL** | localhost:5433        | appuser / apppass          |
+
+---
+
+### ✅ Verification Checklist
+
+After setup, verify everything works:
+
+- [ ] Docker Desktop is running
+- [ ] All containers are up: `docker-compose ps`
+- [ ] PostgreSQL is healthy: `docker-compose ps` shows `(healthy)`
+- [ ] Application logs show "Started PaymentApplication"
+- [ ] API responds: `curl http://localhost:8080/api/payments/create-order` (with POST body)
+- [ ] pgAdmin accessible: `http://localhost:5050`
+- [ ] Can create payment orders via API
 
 ---
 
@@ -444,7 +912,26 @@ Payment verified successfully
 
 PostgreSQL runs inside a Docker container. Flyway is configured to manage database migrations automatically.
 
-### Connect Using GUI (pgAdmin / DBeaver / DataGrip)
+### Connect Using GUI Tools
+
+#### Option 1: pgAdmin (Docker Container) - Recommended ⭐
+
+**Quick Start:**
+
+1. Access pgAdmin at: `http://localhost:5050`
+2. Login with: `admin@local.com` / `admin123`
+3. Add server with:
+   - Host: `postgres` (service name, NOT localhost)
+   - Port: `5432` (container port)
+   - Database: `appdb`
+   - Username: `appuser`
+   - Password: `apppass`
+
+📖 **For detailed step-by-step instructions, see [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md)**
+
+**Access pgAdmin:** `http://localhost:5050`
+
+#### Option 2: External Tools (DBeaver / DataGrip / etc.)
 
 | Field | Value     |
 | :---- | :-------- |
@@ -453,6 +940,11 @@ PostgreSQL runs inside a Docker container. Flyway is configured to manage databa
 | User  | appuser   |
 | Pass  | apppass   |
 | DB    | appdb     |
+
+> **Important:** When connecting from Docker containers (like pgAdmin), use:
+>
+> - Host: `postgres` (service name, not localhost)
+> - Port: `5432` (container port, not 5433)
 
 ---
 
@@ -575,9 +1067,152 @@ If you prefer to use a different port, modify `src/main/resources/application.ym
 
 ```yaml
 server:
-  port: 8081 # Change to any available port
+  port: 8082 # Change to any available port
 ```
 
-Then update your API URLs accordingly (e.g., `http://localhost:8081`).
+Then update your API URLs accordingly (e.g., `http://localhost:8082`).
+
+### Database Connection Issues
+
+**Error:** `Connection to localhost:5433 refused` or `Connection to postgres:5432 refused`
+
+**Solution:**
+
+1. **Check Docker Desktop is running:**
+
+   ```bash
+   docker ps
+   ```
+
+   If you get an error, start Docker Desktop.
+
+2. **Verify PostgreSQL container is running:**
+
+   ```bash
+   docker-compose ps
+   ```
+
+   Should show `postgres-db` as `Up (healthy)`
+
+3. **If container is not running, start it:**
+
+   ```bash
+   docker-compose up -d postgres
+   ```
+
+4. **Wait for health check:**
+
+   ```bash
+   # Watch logs until you see "database system is ready"
+   docker-compose logs -f postgres
+   ```
+
+   Or check status:
+
+   ```bash
+   docker-compose ps
+   ```
+
+   Wait until you see `(healthy)` status.
+
+5. **If container keeps restarting, check logs:**
+
+   ```bash
+   docker-compose logs postgres
+   ```
+
+6. **Restart the application container:**
+   ```bash
+   docker-compose restart app
+   ```
+
+### Razorpay Authentication Errors
+
+**Error:** `Razorpay authentication failed` or `Invalid Razorpay credentials`
+
+**Solution:**
+
+1. **Verify `.env` file exists and has correct format:**
+
+   ```bash
+   cat .env
+   ```
+
+   Should show:
+
+   ```
+   RAZORPAY_KEY=rzp_test_xxxxx
+   RAZORPAY_SECRET=your_secret_key
+   ```
+
+2. **Check key format:**
+
+   - Test keys should start with `rzp_test_`
+   - Live keys should start with `rzp_live_`
+   - No spaces or quotes around values
+
+3. **Verify keys are correct:**
+
+   - Log in to [Razorpay Dashboard](https://dashboard.razorpay.com/)
+   - Go to Settings → API Keys
+   - Regenerate keys if needed
+
+4. **Restart application after changing `.env`:**
+   ```bash
+   docker-compose restart app
+   ```
+
+### Application Won't Start
+
+**Error:** Application container keeps restarting
+
+**Solution:**
+
+1. **Check application logs:**
+
+   ```bash
+   docker-compose logs app
+   ```
+
+2. **Common issues:**
+
+   - Database not ready: Wait for PostgreSQL to be healthy
+   - Missing Razorpay keys: Check `.env` file
+   - Port conflict: Change port in `application.yml` or `docker-compose.yml`
+   - Build errors: Check Docker build logs
+
+3. **Rebuild from scratch:**
+   ```bash
+   docker-compose down
+   docker-compose build --no-cache
+   docker-compose up
+   ```
+
+### Flyway Migration Errors
+
+**Error:** `Migration checksum mismatch` or `Migration failed`
+
+**Solution:**
+
+1. **Check migration files are correct:**
+
+   ```bash
+   ls -la src/main/resources/db/migration/
+   ```
+
+2. **If you need to reset migrations:**
+
+   ```bash
+   # WARNING: This deletes all data!
+   docker-compose down -v
+   docker-compose up --build
+   ```
+
+3. **Check Flyway logs:**
+   ```bash
+   docker-compose logs app | grep -i flyway
+   ```
+
+For pgAdmin connection issues, see [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md).
 
 ---

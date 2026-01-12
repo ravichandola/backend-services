@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: postgres-db
+    restart: always
     environment:
       POSTGRES_USER: appuser
       POSTGRES_PASSWORD: apppass
@@ -16,9 +17,26 @@ services:
       timeout: 5s
       retries: 10
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
   app:
     build: .
     container_name: springboot-app
+    restart: always
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,3 +52,4 @@ services:
 
 volumes:
   postgres_data:
+  pgadmin_data:
