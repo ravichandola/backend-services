@@ -16,6 +16,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - app-network
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -32,25 +34,71 @@ services:
       PGADMIN_CONFIG_SERVER_MODE: "True"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - app-network
 
-  app:
-    build: .
-    container_name: springboot-app
+  backend-service:
+    build:
+      context: ./backend-service
+      dockerfile: Dockerfile
+    container_name: backend-service
     restart: always
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "8081:8081"
     environment:
-      # Use DEV profile to connect to local Docker Postgres
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: apppass
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
+      RAZORPAY_KEY: ${RAZORPAY_KEY:-}
+      RAZORPAY_SECRET: ${RAZORPAY_SECRET:-}
+    networks:
+      - app-network
 
-      RAZORPAY_KEY: ${RAZORPAY_KEY}
-      RAZORPAY_SECRET: ${RAZORPAY_SECRET}
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    restart: always
+    depends_on:
+      - backend-service
+    ports:
+      - "8080:8080"
+    environment:
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-https://api.clerk.dev/v1/jwks}
+      CLERK_ISSUER: ${CLERK_ISSUER:-https://clerk.dev}
+    networks:
+      - app-network
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: payment-service
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: apppass
+      RAZORPAY_KEY: ${RAZORPAY_KEY:-}
+      RAZORPAY_SECRET: ${RAZORPAY_SECRET:-}
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   postgres_data:

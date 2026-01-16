@@ -178,7 +178,7 @@ Before you can see tables in Supabase, you need to run Flyway migrations:
    - Navigate to: `postgres` → `Schemas` → `public` → `Tables`
    - You should see the tables
 
-📖 **For detailed Supabase setup, see [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)**
+📖 **For detailed Supabase setup, see [Supabase Setup Guide](./SUPABASE_SETUP.md)**
 
 ---
 
@@ -381,5 +381,5 @@ docker-compose up -d pgadmin
 
 **Need Help?**
 
-- Check the [main README.md](../readme.md) for more information about the project setup
-- For Supabase setup details, see [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)
+- Check the [main README.md](../../readme.md) for more information about the project setup
+- For Supabase setup details, see [Supabase Setup Guide](./SUPABASE_SETUP.md)

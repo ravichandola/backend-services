@@ -1,8 +1,25 @@
-# 💳 Payment Gateway Backend (Dockerized)
+# 💳 Enterprise Multi-Tenant SaaS Backend with Payment Gateway
 
-A robust Spring Boot backend application for handling payment order creation and verification using **Razorpay**, **PostgreSQL**, and **Spring Data JPA**.
+A complete enterprise-grade multi-tenant SaaS backend system with integrated payment processing, built with **Spring Boot**, **Spring Cloud Gateway**, **PostgreSQL**, **Clerk Authentication**, and **Razorpay**.
 
-This project is **fully Dockerized**, meaning no Java, PostgreSQL, or Maven installation is required on your local machine.
+## 🎯 What This Project Includes
+
+- ✅ **Multi-Tenant SaaS Architecture** - Organizations, Users, Roles, Memberships
+- ✅ **Payment Gateway Integration** - Razorpay payment processing
+- ✅ **JWT Authentication** - Clerk-based authentication with API Gateway
+- ✅ **Webhook-Driven Identity Sync** - Automatic user/org sync from Clerk
+- ✅ **Dockerized Setup** - One command to run everything
+- ✅ **Complete Documentation** - Comprehensive guides and references
+
+## 🚀 Quick Start
+
+**New to the project?** Start here:
+
+1. **[Quick Start Guide](./documentation/setup/QUICK_START.md)** - Get running in 5 minutes
+2. **[Architecture Overview](./documentation/architecture/ARCHITECTURE.md)** - Understand the system design
+3. **[API Testing Guide](./documentation/guides/API_TESTING_CONFIG.md)** - Test APIs and view database
+
+> **Note:** This project is **fully Dockerized** - no Java, PostgreSQL, or Maven installation required on your local machine.
 
 ---
 
@@ -19,22 +36,6 @@ This project is **fully Dockerized**, meaning no Java, PostgreSQL, or Maven inst
 | **Payment Gateway**    | Razorpay (Test Mode)               |
 | **Database Migration** | Flyway                             |
 | **Environment Config** | Dotenv (.env file support)         |
-
----
-
-## 📚 Documentation
-
-This project includes comprehensive documentation to help you understand and work with the codebase:
-
-- **[Flow Documentation](./documentation/FLOW_DOCUMENTATION.md)** - Detailed explanation of the payment flow, API endpoints, request/response formats, error handling, and complete system architecture
-- **[pgAdmin Setup Guide](./documentation/PGADMIN_SETUP.md)** - Step-by-step guide for configuring and using pgAdmin 4 (Docker container) to manage your PostgreSQL database
-- **[Supabase Setup Guide](./documentation/SUPABASE_SETUP.md)** - Complete guide for setting up Supabase Cloud Postgres, running migrations, and connecting via pgAdmin
-
-> **Quick Links:**
->
-> - For understanding the payment flow and API details → [FLOW_DOCUMENTATION.md](./documentation/FLOW_DOCUMENTATION.md)
-> - For setting up and connecting to pgAdmin → [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md)
-> - For Supabase database setup and connection → [SUPABASE_SETUP.md](./documentation/SUPABASE_SETUP.md)
 
 ---
 
@@ -305,7 +306,7 @@ This branch includes significant changes migrating from MySQL to PostgreSQL and 
 - Added pgAdmin 4 container for database management
 - Accessible at `http://localhost:5050`
 - Pre-configured with default credentials
-- See [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md) for detailed setup instructions
+- See [pgAdmin Setup](./documentation/setup/PGADMIN_SETUP.md) for detailed setup instructions
 
 #### 3. **Connection Pool Improvements**
 
@@ -378,7 +379,7 @@ spring:
    - From host machine: `localhost:5433`
    - From Docker containers: `postgres:5432` (service name)
 
-For detailed pgAdmin setup instructions, see [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md).
+For detailed pgAdmin setup instructions, see [pgAdmin Setup Guide](./documentation/setup/PGADMIN_SETUP.md).
 
 ---
 
@@ -711,7 +712,7 @@ curl -X POST http://localhost:8080/api/payments/create-order \
 2. Login with:
    - Email: `admin@local.com`
    - Password: `admin123`
-3. Add PostgreSQL server (see [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md) for details)
+3. Add PostgreSQL server (see [pgAdmin Setup Guide](./documentation/setup/PGADMIN_SETUP.md) for details)
 
 ---
 
@@ -1035,7 +1036,7 @@ Flyway is configured to manage database migrations automatically for both profil
    - Username: `appuser`
    - Password: `apppass`
 
-📖 **For detailed step-by-step instructions, see [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md)**
+📖 **For detailed step-by-step instructions, see [pgAdmin Setup Guide](./documentation/setup/PGADMIN_SETUP.md)**
 
 **Access pgAdmin:** `http://localhost:5050`
 
@@ -1349,6 +1350,71 @@ Then update your API URLs accordingly (e.g., `http://localhost:8082`).
    docker-compose logs app | grep -i flyway
    ```
 
-For pgAdmin connection issues, see [PGADMIN_SETUP.md](./documentation/PGADMIN_SETUP.md).
+For pgAdmin connection issues, see [pgAdmin Setup Guide](./documentation/setup/PGADMIN_SETUP.md).
+
+---
+
+## 📚 Complete Documentation Index
+
+### 🚀 Getting Started
+
+- **[Quick Start Guide](./documentation/setup/QUICK_START.md)** - Quick setup and run instructions
+- **[Architecture Overview](./documentation/architecture/ARCHITECTURE.md)** - System architecture overview
+
+### 📖 Setup & Configuration
+
+- **[Complete Setup Guide](./documentation/setup/SETUP_GUIDE.md)** - Detailed step-by-step setup
+- **[Database Setup](./documentation/setup/DATABASE_SETUP.md)** - Database configuration
+- **[pgAdmin Setup](./documentation/setup/PGADMIN_SETUP.md)** - Database management UI
+- **[Supabase Setup](./documentation/setup/SUPABASE_SETUP.md)** - Cloud database setup
+
+### 📘 How-To Guides
+
+- **[API Testing & Configuration](./documentation/guides/API_TESTING_CONFIG.md)** - Complete testing guide:
+  - Getting JWT tokens using `clerk-login.html`
+  - Setting up ngrok for webhooks
+  - Testing all APIs
+  - Viewing database tables
+- **[Flow Documentation](./documentation/guides/FLOW_DOCUMENTATION.md)** - Payment flow and API details
+
+### 🏗️ Architecture & Design
+
+- **[Implementation Summary](./documentation/architecture/IMPLEMENTATION_SUMMARY.md)** - What was built
+- **[Mistakes & Design Decisions](./documentation/architecture/MISTAKES_AND_DESIGN.md)** - Design lessons learned
+
+### 📚 Reference
+
+- **[Enterprise README](./documentation/reference/README_ENTERPRISE.md)** - Enterprise features
+- **[Documentation Index](./documentation/README.md)** - Browse all documentation
+
+---
+
+## 🎯 Project Overview
+
+This project combines two main components:
+
+1. **Enterprise Multi-Tenant Backend** - Complete SaaS backend with:
+
+   - API Gateway with JWT validation
+   - Backend service with webhook handling
+   - Multi-tenant database schema
+   - Role-based authorization
+
+2. **Payment Service** - Razorpay integration for:
+   - Payment order creation
+   - Payment verification
+   - Transaction tracking
+
+All services run in Docker containers and communicate via Docker network.
+
+---
+
+## 📞 Need Help?
+
+- **Quick Setup Issues?** → [Quick Start Guide](./documentation/setup/QUICK_START.md) troubleshooting section
+- **Detailed Setup?** → [Setup Guide](./documentation/setup/SETUP_GUIDE.md)
+- **API Testing?** → [API Testing Guide](./documentation/guides/API_TESTING_CONFIG.md)
+- **Architecture Questions?** → [Architecture Overview](./documentation/architecture/ARCHITECTURE.md)
+- **Browse All Docs?** → [Documentation Index](./documentation/README.md)
 
 ---
