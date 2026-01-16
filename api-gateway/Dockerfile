@@ -1,7 +1,7 @@
 # ==============================
-# BUILD STAGE (Java 25)
+# BUILD STAGE
 # ==============================
-FROM eclipse-temurin:25-jdk AS build
+FROM eclipse-temurin:21-jdk AS build
 
 WORKDIR /app
 
@@ -19,18 +19,17 @@ RUN ./mvnw dependency:go-offline
 # Copy source code
 COPY src ./src
 
-# Build with Java 25
+# Build
 RUN ./mvnw clean package -DskipTests
 
-
 # ==============================
-# RUN STAGE (Java 25)
+# RUN STAGE
 # ==============================
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
 COPY --from=build /app/target/*.jar app.jar
 
-EXPOSE 8082
+EXPOSE 8080
 ENTRYPOINT ["java","-jar","app.jar"]

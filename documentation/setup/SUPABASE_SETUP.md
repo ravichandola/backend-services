@@ -275,7 +275,7 @@ To rotate password:
 ### View Local Docker Data
 
 - Use Docker pgAdmin: `http://localhost:5050`
-- Connect to `postgres` service (see [PGADMIN_SETUP.md](./PGADMIN_SETUP.md))
+- Connect to `postgres` service (see [pgAdmin Setup Guide](./PGADMIN_SETUP.md))
 
 ### Run App Against Supabase
 
@@ -343,7 +343,7 @@ SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 
 ## 📚 Additional Resources
 
-- [Main README](../readme.md) - Complete project documentation
+- [Main README](../../readme.md) - Complete project documentation
 - [Database Setup Guide](./DATABASE_SETUP.md) - Database configuration overview
 - [pgAdmin Setup](./PGADMIN_SETUP.md) - Local Docker pgAdmin setup
-- [Flow Documentation](./FLOW_DOCUMENTATION.md) - API and flow details
+- [Flow Documentation](../guides/FLOW_DOCUMENTATION.md) - API and flow details

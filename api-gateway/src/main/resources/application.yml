@@ -1,0 +1,41 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  application:
+    name: api-gateway
+
+  cloud:
+    compatibility-verifier:
+      enabled: false
+    gateway:
+      routes:
+        # Route to backend service
+        - id: backend-service
+          uri: http://backend-service:8081
+          predicates:
+            - Path=/api/**
+          filters:
+            # Strip /api prefix if backend doesn't expect it
+            # Adjust based on your backend API structure
+            - StripPrefix=0
+
+  # No database needed for gateway
+  datasource:
+    driver-class-name: org.postgresql.Driver
+
+server:
+  port: 8080
+
+# Clerk Configuration
+clerk:
+  jwks:
+    # Clerk JWKS endpoint - replace with your Clerk instance URL
+    # Format: https://<your-clerk-instance>.clerk.accounts.dev/.well-known/jwks.json
+    url: ${CLERK_JWKS_URL:https://unique-lark-93.clerk.accounts.dev/.well-known/jwks.json}
+  issuer: ${CLERK_ISSUER:https://clerk.dev}
+
+logging:
+  level:
+    com.demo.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG

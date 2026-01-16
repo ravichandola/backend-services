@@ -211,6 +211,6 @@ SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 
 ## 📚 Additional Resources
 
-- [Main README](./readme.md) - Complete project documentation
-- [Flow Documentation](./documentation/FLOW_DOCUMENTATION.md) - API and flow details
-- [pgAdmin Setup](./documentation/PGADMIN_SETUP.md) - pgAdmin configuration guide
+- [Main README](../../readme.md) - Complete project documentation
+- [Flow Documentation](../guides/FLOW_DOCUMENTATION.md) - API and flow details
+- [pgAdmin Setup](./PGADMIN_SETUP.md) - pgAdmin configuration guide

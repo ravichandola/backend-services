@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clerk Login - Get JWT Token</title>
+    <!-- Clerk SDK - Load from Clerk Frontend API with publishableKey -->
+    <script
+      async
+      crossorigin="anonymous"
+      data-clerk-publishable-key="pk_test_dW5pcXVlLWxhcmstOTMuY2xlcmsuYWNjb3VudHMuZGV2JA"
+      src="https://unique-lark-93.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+      type="text/javascript"
+    ></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      .status {
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 5px;
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+      }
+      button {
+        background: #2196f3;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        font-size: 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin: 10px 5px;
+      }
+      button:hover {
+        background: #1976d2;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .token-display {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+      }
+      textarea {
+        width: 100%;
+        min-height: 100px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-family: monospace;
+        font-size: 12px;
+        margin: 10px 0;
+      }
+      .user-info {
+        background: #e8f5e9;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 20px 0;
+      }
+      .test-command {
+        background: #fff3e0;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 20px 0;
+        font-family: monospace;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔐 Clerk Login - JWT Token Generator</h1>
+
+      <div id="status" class="status">Loading Clerk SDK...</div>
+
+      <div id="loginSection" style="display: none; text-align: center">
+        <button id="loginBtn">Login with Clerk</button>
+      </div>
+
+      <div id="userSection" style="display: none">
+        <div class="user-info">
+          <h3>✅ Logged In</h3>
+          <p><strong>Email:</strong> <span id="userEmail"></span></p>
+          <p><strong>User ID:</strong> <span id="userId"></span></p>
+        </div>
+
+        <div style="text-align: center">
+          <button id="getTokenBtn">Get JWT Token</button>
+          <button id="logoutBtn">Logout</button>
+        </div>
+      </div>
+
+      <div id="tokenSection" style="display: none" class="token-display">
+        <h3>🎫 JWT Token:</h3>
+        <textarea id="tokenText" readonly></textarea>
+        <button onclick="copyToken()">📋 Copy Token</button>
+
+        <div class="test-command">
+          <strong>Test Command:</strong><br />
+          <code id="testCommand"></code>
+          <button onclick="copyCommand()" style="margin-top: 10px">
+            📋 Copy Command
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ⚠️ IMPORTANT: Replace with your Clerk Publishable Key
+      // Get it from: Clerk Dashboard → API Keys → Publishable Key
+      const CLERK_PUBLISHABLE_KEY =
+        "pk_test_dW5pcXVlLWxhcmstOTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
+
+      let clerk;
+
+      async function initClerk() {
+        try {
+          // Check if Clerk SDK is loaded
+          if (typeof Clerk === "undefined") {
+            document.getElementById("status").innerHTML =
+              "❌ <strong>Error:</strong> Clerk SDK not loaded. Please refresh the page.<br>" +
+              "If error persists, check your internet connection.";
+            return;
+          }
+
+          // Clerk SDK v5 uses Clerk.load() instead of new Clerk()
+          console.log("Initializing Clerk...");
+          console.log("Clerk object:", Clerk);
+          console.log("Clerk.load function:", typeof Clerk.load);
+          console.log("Current URL:", window.location.href);
+
+          // Check if running from file:// protocol (Clerk doesn't support this)
+          if (window.location.protocol === "file:") {
+            document.getElementById("status").innerHTML =
+              "❌ <strong>Error:</strong> Clerk doesn't work with file:// protocol.<br>" +
+              "Please run a local server:<br>" +
+              "<code>python3 -m http.server 8000</code><br>" +
+              "Then open: <code>http://localhost:8000/clerk-login.html</code>";
+            return;
+          }
+
+          // Try Clerk.load() first (v5 method)
+          if (typeof Clerk.load === "function") {
+            await Clerk.load();
+            console.log("✅ Clerk loaded successfully using Clerk.load()!");
+            clerk = Clerk; // Clerk is now the instance
+          } else if (typeof Clerk === "function") {
+            // Fallback: try constructor approach
+            clerk = new Clerk(CLERK_PUBLISHABLE_KEY);
+            await clerk.load();
+            console.log("✅ Clerk loaded successfully using constructor!");
+          } else {
+            throw new Error(
+              "Clerk object is not a function or doesn't have load method"
+            );
+          }
+
+          updateUI();
+
+          // Note: Clerk v5 doesn't use addListener
+          // Session changes are handled automatically
+          // If you need to listen to changes, use Clerk's built-in events
+        } catch (error) {
+          document.getElementById("status").innerHTML =
+            "❌ <strong>Error loading Clerk:</strong> " + error.message;
+          console.error("Clerk error:", error);
+        }
+      }
+
+      function updateUI() {
+        const statusDiv = document.getElementById("status");
+        const loginSection = document.getElementById("loginSection");
+        const userSection = document.getElementById("userSection");
+        const tokenSection = document.getElementById("tokenSection");
+
+        // Check if clerk is initialized
+        if (!clerk) {
+          statusDiv.innerHTML =
+            "⏳ <strong>Status:</strong> Initializing Clerk...";
+          return;
+        }
+
+        // Clerk v5 uses different API - check for user
+        let user = null;
+        if (clerk.user) {
+          user = clerk.user;
+        } else if (clerk.loaded && clerk.user) {
+          user = clerk.user;
+        } else if (typeof clerk.getUser === "function") {
+          // Try async method
+          clerk
+            .getUser()
+            .then((u) => {
+              if (u) updateUI();
+            })
+            .catch(() => {});
+        }
+
+        if (user) {
+          // User is logged in
+          statusDiv.innerHTML = "✅ <strong>Status:</strong> Logged in";
+          statusDiv.style.background = "#e8f5e9";
+          statusDiv.style.borderLeftColor = "#4caf50";
+
+          loginSection.style.display = "none";
+          userSection.style.display = "block";
+
+          document.getElementById("userEmail").textContent =
+            user.emailAddresses?.[0]?.emailAddress ||
+            user.primaryEmailAddress?.emailAddress ||
+            "N/A";
+          document.getElementById("userId").textContent = user.id;
+        } else {
+          // User is not logged in
+          statusDiv.innerHTML =
+            "⚠️ <strong>Status:</strong> Not logged in. Please login.";
+          statusDiv.style.background = "#fff3e0";
+          statusDiv.style.borderLeftColor = "#ff9800";
+
+          loginSection.style.display = "block";
+          userSection.style.display = "none";
+          tokenSection.style.display = "none";
+        }
+      }
+
+      document
+        .getElementById("loginBtn")
+        .addEventListener("click", async () => {
+          try {
+            if (!clerk) {
+              alert("Clerk not initialized. Please refresh the page.");
+              return;
+            }
+            // Clerk v5 uses different method
+            if (typeof clerk.openSignIn === "function") {
+              await clerk.openSignIn();
+            } else if (typeof Clerk?.openSignIn === "function") {
+              await Clerk.openSignIn();
+            } else {
+              // Fallback: redirect to sign in
+              window.location.href = clerk.buildUrlWithAuth({
+                fallbackRedirectUrl: window.location.href,
+                fallbackRedirectUrlSignIn: window.location.href,
+              });
+            }
+          } catch (error) {
+            alert("Error opening sign in: " + error.message);
+            console.error("Sign in error:", error);
+          }
+        });
+
+      document
+        .getElementById("getTokenBtn")
+        .addEventListener("click", async () => {
+          try {
+            if (!clerk) {
+              alert("Clerk not initialized. Please refresh the page.");
+              return;
+            }
+
+            // Clerk v5 uses different API
+            let session = null;
+            if (clerk.session) {
+              session = clerk.session;
+            } else if (typeof clerk.getSession === "function") {
+              session = await clerk.getSession();
+            } else if (typeof Clerk?.session !== "undefined") {
+              session = Clerk.session;
+            }
+
+            if (!session) {
+              alert("No active session found. Please login first.");
+              return;
+            }
+
+            // Get token - try to get a longer-lived token
+            let token = null;
+            if (typeof session.getToken === "function") {
+              // Try with template for longer expiry (if available)
+              try {
+                token = await session.getToken({ template: "default" });
+              } catch (e) {
+                // Fallback to default getToken
+                token = await session.getToken();
+              }
+            } else if (typeof Clerk?.session?.getToken === "function") {
+              try {
+                token = await Clerk.session.getToken({ template: "default" });
+              } catch (e) {
+                token = await Clerk.session.getToken();
+              }
+            } else {
+              throw new Error("getToken method not available");
+            }
+
+            document.getElementById("tokenText").value = token;
+            document.getElementById(
+              "testCommand"
+            ).textContent = `curl -H "Authorization: Bearer ${token}" http://localhost:8080/api/me`;
+
+            document.getElementById("tokenSection").style.display = "block";
+
+            // Scroll to token section
+            document
+              .getElementById("tokenSection")
+              .scrollIntoView({ behavior: "smooth" });
+
+            // ⚠️ IMPORTANT: Token expires in 60 seconds - test immediately!
+            alert(
+              "⚠️ Token generated! Token expires in ~60 seconds. Test immediately!"
+            );
+
+            // Auto-test the token (optional - uncomment to enable)
+            // testToken(token);
+          } catch (error) {
+            alert("Error getting token: " + error.message);
+            console.error("Token error:", error);
+          }
+        });
+
+      document
+        .getElementById("logoutBtn")
+        .addEventListener("click", async () => {
+          try {
+            await clerk.signOut();
+            updateUI();
+          } catch (error) {
+            alert("Error logging out: " + error.message);
+          }
+        });
+
+      function copyToken() {
+        const token = document.getElementById("tokenText");
+        token.select();
+        document.execCommand("copy");
+        alert("✅ Token copied to clipboard!");
+      }
+
+      function copyCommand() {
+        const command = document.getElementById("testCommand").textContent;
+        navigator.clipboard.writeText(command).then(() => {
+          alert("✅ Command copied to clipboard!");
+        });
+      }
+
+      // Wait for Clerk SDK to load and initialize
+      let retryCount = 0;
+      const maxRetries = 100; // 10 seconds total
+
+      function waitForClerkAndInit() {
+        // Check multiple ways Clerk might be available
+        const clerkAvailable =
+          typeof Clerk !== "undefined" ||
+          typeof window.Clerk !== "undefined" ||
+          window.clerkSDKReady === true;
+
+        if (clerkAvailable && typeof Clerk !== "undefined") {
+          // Clerk SDK is loaded, initialize
+          console.log("✅ Clerk SDK found! Initializing...");
+          console.log("Clerk type:", typeof Clerk);
+          console.log("Clerk constructor:", typeof Clerk);
+          initClerk();
+        } else {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            // Retry after 100ms
+            setTimeout(waitForClerkAndInit, 100);
+          } else {
+            // Timeout - show error with manual load option
+            document.getElementById("status").innerHTML =
+              "❌ <strong>Error:</strong> Clerk SDK failed to load after 10 seconds.<br>" +
+              "<br>" +
+              "<strong>Debug Info:</strong><br>" +
+              "- Script loaded: " +
+              (window.clerkSDKReady ? "Yes" : "No") +
+              "<br>" +
+              "- Clerk type: " +
+              typeof Clerk +
+              "<br>" +
+              "<br>" +
+              "<strong>Try these:</strong><br>" +
+              "1. Click button below to manually load<br>" +
+              "2. Check Network tab (F12) for clerk.browser.js<br>" +
+              "3. Hard refresh: Cmd+Shift+R<br>" +
+              "<br>" +
+              "<button onclick='loadClerkManually()' style='padding:10px; background:#2196F3; color:white; border:none; border-radius:5px; cursor:pointer; margin:10px 0;'>🔄 Try Manual Load</button>";
+            console.error(
+              "❌ Clerk SDK not found after",
+              maxRetries,
+              "retries"
+            );
+            console.log("Debug info:");
+            console.log("- typeof Clerk:", typeof Clerk);
+            console.log("- typeof window.Clerk:", typeof window.Clerk);
+            console.log("- window.Clerk:", window.Clerk);
+            console.log("- window.clerkSDKReady:", window.clerkSDKReady);
+            console.log(
+              "- All window properties:",
+              Object.keys(window).filter((k) =>
+                k.toLowerCase().includes("clerk")
+              )
+            );
+          }
+        }
+      }
+
+      // Manual load function with proper initialization
+      window.loadClerkManually = function () {
+        console.log("Attempting manual Clerk SDK load...");
+        document.getElementById("status").innerHTML =
+          "⏳ Manually loading Clerk SDK...";
+
+        // Remove any existing script tags
+        const existing = document.querySelectorAll('script[src*="clerk"]');
+        existing.forEach((s) => s.remove());
+
+        // Load script
+        const script = document.createElement("script");
+        script.src =
+          "https://unpkg.com/@clerk/clerk-js@5/dist/clerk.browser.js";
+        script.async = false;
+
+        script.onload = function () {
+          console.log("✅ Script loaded, waiting for Clerk object...");
+          // Wait longer and check multiple times
+          let checkCount = 0;
+          const checkInterval = setInterval(() => {
+            checkCount++;
+            console.log(`Check ${checkCount}: typeof Clerk =`, typeof Clerk);
+
+            if (typeof Clerk !== "undefined") {
+              clearInterval(checkInterval);
+              console.log("✅ Clerk available after manual load!");
+              window.clerkSDKReady = true;
+              waitForClerkAndInit();
+            } else if (checkCount >= 20) {
+              // After 2 seconds, give up
+              clearInterval(checkInterval);
+              console.error("❌ Clerk still not available after 2 seconds");
+              console.log(
+                "Window keys:",
+                Object.keys(window).filter((k) =>
+                  k.toLowerCase().includes("clerk")
+                )
+              );
+              document.getElementById("status").innerHTML =
+                "❌ Clerk SDK script loaded but Clerk object not found.<br>" +
+                "The SDK might need to be initialized manually. Check console for errors.";
+            }
+          }, 100);
+        };
+
+        script.onerror = function (e) {
+          console.error("❌ Manual load failed:", e);
+          document.getElementById("status").innerHTML =
+            "❌ Failed to load Clerk SDK from CDN.<br>" +
+            "Please check your internet connection.";
+        };
+
+        document.head.appendChild(script);
+      };
+
+      // Start initialization when DOM is ready
+      function startInit() {
+        document.getElementById("status").innerHTML = "⏳ Loading Clerk SDK...";
+        // Wait a bit for deferred script to load
+        setTimeout(waitForClerkAndInit, 500);
+      }
+
+      // Wait for both DOM and deferred scripts
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", startInit);
+      } else {
+        // DOM already ready, but wait for deferred scripts
+        window.addEventListener("load", startInit);
+        // Also try immediately
+        setTimeout(startInit, 100);
+      }
+    </script>
+
+    <!-- Clerk SDK already loaded in head with defer attribute -->
+  </body>
+</html>
