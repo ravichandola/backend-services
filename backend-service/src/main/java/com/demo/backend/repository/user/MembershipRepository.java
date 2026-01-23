@@ -32,6 +32,16 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     @Query("SELECT m FROM Membership m WHERE m.organization.id = :orgId")
     List<Membership> findByOrganizationId(@Param("orgId") Long orgId);
     
+    /**
+     * Find all memberships for an organization with user and role eagerly fetched
+     * Used for organization member listing
+     */
+    @Query("SELECT m FROM Membership m " +
+           "JOIN FETCH m.user " +
+           "JOIN FETCH m.role " +
+           "WHERE m.organization.id = :orgId")
+    List<Membership> findByOrganizationIdWithRelations(@Param("orgId") Long orgId);
+    
     @Query("SELECT m FROM Membership m WHERE m.user.id = :userId AND m.organization.id = :orgId AND m.role.name = :roleName")
     Optional<Membership> findByUserIdAndOrganizationIdAndRoleName(
         @Param("userId") Long userId, 

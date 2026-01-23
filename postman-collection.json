@@ -1,0 +1,565 @@
+{
+  "info": {
+    "name": "Payment Service APIs - Complete Collection",
+    "description": "Complete collection for testing User and Organization APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "payment-service"
+  },
+  "item": [
+    {
+      "name": "Organization APIs",
+      "item": [
+        {
+          "name": "1. Get User Organizations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has organizations array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('organizations');",
+                  "    pm.expect(jsonData.organizations).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/organizations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations"]
+            },
+            "description": "Get all organizations for the current user"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get Organization by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has organization data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}"]
+            },
+            "description": "Get organization details by database ID"
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get Organization by Clerk ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has clerkOrgId\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('clerkOrgId');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/clerk/{{clerk_org_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "clerk", "{{clerk_org_id}}"]
+            },
+            "description": "Get organization details by Clerk organization ID"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Get Organization Members",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has members array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('members');",
+                  "    pm.expect(jsonData.members).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}/members?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}", "members"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "Page number (0-indexed)"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Page size"
+                }
+              ]
+            },
+            "description": "Get all members of an organization (paginated)"
+          },
+          "response": []
+        },
+        {
+          "name": "5. Get User Memberships",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has memberships array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('memberships');",
+                  "    pm.expect(jsonData.memberships).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/memberships",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "memberships"]
+            },
+            "description": "Get current user's memberships across all organizations"
+          },
+          "response": []
+        }
+      ],
+      "description": "All Organization related APIs"
+    },
+    {
+      "name": "User APIs",
+      "item": [
+        {
+          "name": "1. Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "    pm.expect(jsonData).to.have.property('clerkUserId');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "me"]
+            },
+            "description": "Get current logged-in user information"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get All Users (Admin Only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has users array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('content');",
+                  "    pm.expect(jsonData.content).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users?page=0&size=20&includeRoles=false",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "Page number (0-indexed)"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Page size"
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt,desc",
+                  "description": "Sort field and direction"
+                },
+                {
+                  "key": "includeRoles",
+                  "value": "false",
+                  "description": "Include roles and memberships"
+                }
+              ]
+            },
+            "description": "Get all users (requires ADMIN role in any organization)"
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get All Users with Roles (Admin Only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has users with roles\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('content');",
+                  "    if (jsonData.content.length > 0) {",
+                  "        pm.expect(jsonData.content[0]).to.have.property('memberships');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users?page=0&size=20&includeRoles=true",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "Page number (0-indexed)"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Page size"
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt,desc",
+                  "description": "Sort field and direction"
+                },
+                {
+                  "key": "includeRoles",
+                  "value": "true",
+                  "description": "Include roles and memberships"
+                }
+              ]
+            },
+            "description": "Get all users with their roles and memberships (requires ADMIN role)"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Update User Role (Admin Only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response indicates success\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clerkUserId\": \"user_xxx\",\n  \"organizationId\": 1,\n  \"roleName\": \"ADMIN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/role",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "role"]
+            },
+            "description": "Update a user's role in an organization (requires ADMIN role)"
+          },
+          "response": []
+        },
+        {
+          "name": "5. Get Admin Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has admin data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('organizationId');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{clerk_user_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{clerk_org_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/org/{{org_id}}/admin-data",
+              "host": ["{{base_url}}"],
+              "path": ["api", "org", "{{org_id}}", "admin-data"]
+            },
+            "description": "Get admin-only data for an organization (requires ADMIN role)"
+          },
+          "response": []
+        }
+      ],
+      "description": "All User related APIs"
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clerk_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "org_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "clerk_org_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
