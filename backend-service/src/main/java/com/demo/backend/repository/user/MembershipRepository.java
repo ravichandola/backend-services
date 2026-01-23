@@ -19,6 +19,16 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     @Query("SELECT m FROM Membership m WHERE m.user.id = :userId")
     List<Membership> findByUserId(@Param("userId") Long userId);
     
+    /**
+     * Find all memberships for a user with organization and role eagerly fetched
+     * Used for user listing with roles
+     */
+    @Query("SELECT m FROM Membership m " +
+           "JOIN FETCH m.organization " +
+           "JOIN FETCH m.role " +
+           "WHERE m.user.id = :userId")
+    List<Membership> findByUserIdWithRelations(@Param("userId") Long userId);
+    
     @Query("SELECT m FROM Membership m WHERE m.organization.id = :orgId")
     List<Membership> findByOrganizationId(@Param("orgId") Long orgId);
     
@@ -35,4 +45,19 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
      */
     @Query("SELECT m FROM Membership m WHERE m.user.id = :userId AND m.role.name = 'ADMIN'")
     List<Membership> findAdminMembershipsByUserId(@Param("userId") Long userId);
+    
+    /**
+     * Count ADMIN memberships for a user (across all organizations)
+     * Used as fallback when prepared statement conflicts occur
+     * More efficient than fetching all memberships
+     */
+    @Query("SELECT COUNT(m) FROM Membership m WHERE m.user.id = :userId AND m.role.name = 'ADMIN'")
+    long countAdminMembershipsByUserId(@Param("userId") Long userId);
+    
+    /**
+     * Count memberships for an organization
+     * More efficient than fetching all memberships and calling .size()
+     */
+    @Query("SELECT COUNT(m) FROM Membership m WHERE m.organization.id = :orgId")
+    long countByOrganizationId(@Param("orgId") Long orgId);
 }
