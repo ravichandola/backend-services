@@ -1,0 +1,328 @@
+---
+description: API Gateway standards and patterns for Spring Cloud Gateway
+alwaysApply: true
+---
+
+# API Gateway Standards
+
+## 🌐 Gateway Overview
+
+The API Gateway is the **single point of authentication** for all requests. It validates JWT tokens and enriches requests with trusted headers before forwarding to backend services.
+
+**Key Responsibilities:**
+- JWT validation using Clerk JWKS
+- Header enrichment (X-User-Id, X-Org-Id)
+- Route configuration to backend services
+- Public endpoint bypass (webhooks, payments, health checks)
+
+## 🔐 JWT Validation Pattern
+
+### Global Filter Implementation
+
+```java
+// ✅ GOOD - Global filter for JWT validation
+@Component
+@Slf4j
+public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+    
+    @Value("${clerk.jwks.url}")
+    private String jwksUrl;
+    
+    @Value("${clerk.issuer}")
+    private String issuer;
+    
+    private final Map<String, PublicKey> publicKeyCache = new ConcurrentHashMap<>();
+    
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        ServerHttpRequest request = exchange.getRequest();
+        String path = request.getURI().getPath();
+        
+        // Allow public endpoints without authentication
+        if (isPublicEndpoint(path)) {
+            return chain.filter(exchange);
+        }
+        
+        // Extract and validate JWT
+        String token = extractToken(request);
+        if (token == null) {
+            return unauthorized(exchange);
+        }
+        
+        try {
+            Claims claims = validateJwt(token);
+            String userId = claims.getSubject();
+            String orgId = claims.get("org_id", String.class);
+            
+            // Add trusted headers
+            ServerHttpRequest modifiedRequest = request.mutate()
+                .header("X-User-Id", userId)
+                .header("X-Org-Id", orgId != null ? orgId : "")
+                .build();
+            
+            return chain.filter(exchange.mutate().request(modifiedRequest).build());
+            
+        } catch (Exception e) {
+            log.error("JWT validation failed", e);
+            return unauthorized(exchange);
+        }
+    }
+    
+    @Override
+    public int getOrder() {
+        return -100; // Execute early in filter chain
+    }
+}
+```
+
+**Requirements:**
+- Implement `GlobalFilter` and `Ordered` interfaces
+- Cache public keys for performance (ConcurrentHashMap)
+- Extract JWT from `Authorization: Bearer <token>` header
+- Validate JWT signature, expiration, and issuer
+- Add `X-User-Id` and `X-Org-Id` headers
+- Return 401 Unauthorized for invalid tokens
+- Set appropriate filter order (negative for early execution)
+
+### Public Endpoint Bypass
+
+```java
+// ✅ GOOD - Allow public endpoints without authentication
+private boolean isPublicEndpoint(String path) {
+    return path.startsWith("/api/webhooks") ||
+           path.startsWith("/api/payments") ||
+           path.equals("/api/health");
+}
+```
+
+**Requirements:**
+- Webhook endpoints: `/api/webhooks/**` (no authentication)
+- Payment endpoints: `/api/payments/**` (no authentication)
+- Health check: `/api/health` (no authentication)
+- All other `/api/**` endpoints require JWT
+
+### JWKS URL Configuration
+
+```yaml
+# ✅ CORRECT - Clerk JWKS endpoint format
+clerk:
+  jwks:
+    # Format: https://<instance>.clerk.accounts.dev/.well-known/jwks.json
+    url: ${CLERK_JWKS_URL:-https://unique-lark-93.clerk.accounts.dev/.well-known/jwks.json}
+  issuer: ${CLERK_ISSUER:-https://unique-lark-93.clerk.accounts.dev}
+```
+
+**Requirements:**
+- Use environment variables with defaults
+- JWKS URL format: `https://<instance>.clerk.accounts.dev/.well-known/jwks.json`
+- Never hardcode Clerk instance URLs
+- Verify JWKS endpoint is accessible before deployment
+
+## 🛣️ Route Configuration
+
+### application.yml Routes
+
+```yaml
+# ✅ GOOD - Route configuration
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: backend-service
+          uri: http://backend-service:8081
+          predicates:
+            - Path=/api/**
+          filters:
+            - StripPrefix=0  # Keep /api prefix
+```
+
+**Requirements:**
+- Route `/api/**` to backend-service
+- Use service name (not localhost) for inter-container communication
+- Configure predicates for path matching
+- Use filters for request modification if needed
+- Document route changes in PR description
+
+### Route Testing
+
+```java
+// ✅ GOOD - Test route configuration
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+class GatewayRouteTest {
+    @Test
+    void shouldRouteToBackendService() {
+        // Test that /api/** routes to backend-service:8081
+    }
+}
+```
+
+## 🔒 Security Patterns
+
+### JWT Validation Security
+
+```java
+// ✅ GOOD - Secure JWT validation
+private Claims validateJwt(String token) throws Exception {
+    // 1. Parse JWT header to get key ID (kid)
+    String kid = extractKidFromToken(token);
+    
+    // 2. Get public key from cache or JWKS
+    PublicKey publicKey = publicKeyCache.computeIfAbsent(kid, k -> fetchPublicKey(k));
+    
+    // 3. Validate signature
+    JwtParser parser = Jwts.parser()
+        .verifyWith(publicKey)
+        .requireIssuer(issuer)
+        .build();
+    
+    // 4. Validate expiration and claims
+    Claims claims = parser.parseSignedClaims(token).getPayload();
+    
+    return claims;
+}
+```
+
+**Requirements:**
+- Validate JWT signature using public key from JWKS
+- Validate JWT expiration (`exp` claim)
+- Validate JWT issuer (`iss` claim)
+- Cache public keys to reduce JWKS calls
+- Handle JWKS fetch failures gracefully
+- Log validation failures for debugging
+
+### Header Enrichment Security
+
+```java
+// ✅ GOOD - Add trusted headers after validation
+ServerHttpRequest modifiedRequest = request.mutate()
+    .header("X-User-Id", userId)  // From JWT 'sub' claim
+    .header("X-Org-Id", orgId != null ? orgId : "")  // From JWT 'org_id' claim
+    .build();
+```
+
+**Requirements:**
+- Only add headers after successful JWT validation
+- Extract user ID from JWT `sub` claim
+- Extract org ID from JWT `org_id` claim (may be null)
+- Backend services trust these headers completely
+- Never forward original JWT token to backend
+
+## ⚠️ Common Mistakes
+
+### ❌ Mistake 1: Validating JWT in Backend
+
+```java
+// ❌ WRONG - Backend should not validate JWT
+// Gateway already validated, backend should trust headers
+```
+
+**Solution:** Backend trusts `X-User-Id` and `X-Org-Id` headers. See [Backend Standards](./enterprise-backend-standards.mdc).
+
+### ❌ Mistake 2: Wrong JWKS URL Format
+
+```yaml
+# ❌ WRONG - Incorrect JWKS URL format
+clerk:
+  jwks:
+    url: https://api.clerk.dev/v1/jwks  # Wrong format
+
+# ✅ CORRECT - Proper JWKS URL format
+clerk:
+  jwks:
+    url: https://<instance>.clerk.accounts.dev/.well-known/jwks.json
+```
+
+### ❌ Mistake 3: Not Caching Public Keys
+
+```java
+// ❌ WRONG - Fetching public key on every request
+PublicKey publicKey = fetchPublicKey(kid);  // Slow!
+
+// ✅ CORRECT - Cache public keys
+PublicKey publicKey = publicKeyCache.computeIfAbsent(kid, k -> fetchPublicKey(k));
+```
+
+### ❌ Mistake 4: Wrong Filter Order
+
+```java
+// ❌ WRONG - Filter executes too late
+@Override
+public int getOrder() {
+    return 100;  // Too late, other filters may have run
+}
+
+// ✅ CORRECT - Execute early
+@Override
+public int getOrder() {
+    return -100;  // Execute early in filter chain
+}
+```
+
+## 🧪 Testing Patterns
+
+### Unit Testing JWT Validation
+
+```java
+// ✅ GOOD - Test JWT validation logic
+@ExtendWith(MockitoExtension.class)
+class JwtAuthenticationFilterTest {
+    @Mock
+    private ServerWebExchange exchange;
+    
+    @Test
+    void shouldValidateValidJwt() {
+        // Test valid JWT validation
+    }
+    
+    @Test
+    void shouldRejectInvalidJwt() {
+        // Test invalid JWT rejection
+    }
+    
+    @Test
+    void shouldAllowPublicEndpoints() {
+        // Test public endpoint bypass
+    }
+}
+```
+
+**Requirements:**
+- Test valid JWT validation
+- Test invalid JWT rejection
+- Test expired JWT handling
+- Test public endpoint bypass
+- Test header enrichment
+
+### Integration Testing Routes
+
+```java
+// ✅ GOOD - Test route configuration
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+class GatewayRouteIntegrationTest {
+    @Test
+    void shouldRouteApiRequestsToBackend() {
+        // Test that /api/** routes correctly
+    }
+}
+```
+
+## 📋 Gateway Checklist
+
+When modifying gateway:
+
+- [ ] JWT validation implemented correctly
+- [ ] Public endpoints bypass authentication
+- [ ] Headers added after validation (X-User-Id, X-Org-Id)
+- [ ] JWKS URL configured correctly
+- [ ] Public keys cached for performance
+- [ ] Filter order set appropriately
+- [ ] Route configuration correct
+- [ ] Error handling for validation failures
+- [ ] Logging for debugging
+- [ ] Tests added for new functionality
+
+## 🔗 Related Standards
+
+- [Backend Standards](./enterprise-backend-standards.mdc) - How backend trusts gateway headers
+- [Architecture Patterns](./architecture-patterns.mdc) - Trust model explanation
+- [Docker Standards](./docker-standards.mdc) - Environment variable configuration

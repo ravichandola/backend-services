@@ -1,0 +1,355 @@
+---
+description: Docker and Docker Compose standards and best practices
+alwaysApply: true
+---
+
+# Docker Standards and Best Practices
+
+## 🐳 Docker Compose Configuration
+
+### Environment Variable Syntax
+
+**CRITICAL:** Docker Compose environment variable interpolation requires a **dash (`-`)** for default values.
+
+```yaml
+# ✅ CORRECT - Always use ${VARIABLE:-default} format
+environment:
+  CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
+  CLERK_JWKS_URL: ${CLERK_JWKS_URL:-https://api.clerk.dev/v1/jwks}
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+
+# ❌ WRONG - Missing dash causes "invalid interpolation format" error
+environment:
+  CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:}  # ❌ Invalid
+  CLERK_JWKS_URL: ${CLERK_JWKS_URL:https://api.clerk.dev/v1/jwks}  # ❌ Invalid
+```
+
+**Rules:**
+- Empty default: `${VARIABLE:-}`
+- Non-empty default: `${VARIABLE:-default}`
+- **Always include the dash (`-`)** before the default value
+
+### Profile-Based Database Configuration
+
+```yaml
+# ✅ GOOD - Profile-based datasource switching
+environment:
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+  # Supabase (PROD)
+  SUPABASE_DATASOURCE_URL: ${SUPABASE_DATASOURCE_URL:-jdbc:postgresql://...}
+  SUPABASE_DATASOURCE_USERNAME: ${SUPABASE_DATASOURCE_USERNAME:-...}
+  SUPABASE_DATASOURCE_PASSWORD: ${SUPABASE_DATASOURCE_PASSWORD:-...}
+  # Local Docker (DEV)
+  LOCAL_DATASOURCE_URL: ${LOCAL_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/appdb}
+  LOCAL_DATASOURCE_USERNAME: ${LOCAL_DATASOURCE_USERNAME:-appuser}
+  LOCAL_DATASOURCE_PASSWORD: ${LOCAL_DATASOURCE_PASSWORD:-apppass}
+```
+
+**Requirements:**
+- Use environment variable substitution for all datasource values
+- Never hardcode database credentials in docker-compose.yml
+- Support both dev (local Docker) and prod (Supabase) profiles
+- Use `.env` file for actual values
+
+### Service Dependencies
+
+```yaml
+# ✅ GOOD - Proper health check dependencies
+backend-service:
+  depends_on:
+    postgres:
+      condition: service_healthy  # Wait for health check
+```
+
+**Requirements:**
+- Always use `condition: service_healthy` for database dependencies
+- Configure health checks for services that other services depend on
+- Use `restart: always` for production-like behavior
+
+### Port Management
+
+```yaml
+# ✅ GOOD - Document port conflicts
+# NOTE: If running payment-service locally, stop this container first
+# to free port 8082: docker stop payment-service
+payment-service:
+  ports:
+    - "8082:8082"
+```
+
+**Requirements:**
+- Document potential port conflicts
+- Check port availability before starting services
+- Use `docker ps` to check running containers
+- Use `lsof -i :PORT` to check port usage on host
+
+## 🏗️ Dockerfile Standards
+
+### Multi-Stage Builds
+
+```dockerfile
+# ✅ GOOD - Multi-stage build for smaller images
+# ==============================
+# BUILD STAGE
+# ==============================
+FROM eclipse-temurin:25-jdk AS build
+
+WORKDIR /app
+
+# Copy Maven wrapper & config
+COPY pom.xml .
+COPY mvnw .
+COPY mvnw.cmd .
+COPY .mvn .mvn
+
+RUN chmod +x mvnw
+
+# Download dependencies (cached layer)
+RUN ./mvnw dependency:go-offline
+
+# Copy source code
+COPY src ./src
+
+# Build
+RUN ./mvnw clean package -DskipTests
+
+# ==============================
+# RUN STAGE
+# ==============================
+FROM eclipse-temurin:25-jre
+
+WORKDIR /app
+
+COPY --from=build /app/target/*.jar app.jar
+
+EXPOSE 8081
+ENTRYPOINT ["java","-jar","app.jar"]
+```
+
+**Requirements:**
+- Always use multi-stage builds (build stage + runtime stage)
+- Use JDK for build stage, JRE for runtime stage
+- Match Java version in Dockerfile with pom.xml Java version
+- Copy dependencies before source code (better caching)
+- Use `dependency:go-offline` to cache Maven dependencies
+
+### Java Version Matching
+
+**CRITICAL:** Dockerfile Java version must match pom.xml Java version.
+
+```dockerfile
+# ✅ CORRECT - Java 25 matches pom.xml
+FROM eclipse-temurin:25-jdk AS build
+FROM eclipse-temurin:25-jre
+
+# ❌ WRONG - Java 21 but pom.xml uses Java 25
+FROM eclipse-temurin:21-jdk AS build  # Will cause build failure
+```
+
+**Requirements:**
+- Check `pom.xml` for Java version (`<release>25</release>`)
+- Use matching version in Dockerfile
+- Update both files when changing Java version
+
+## 🔄 Docker Workflow
+
+### Rebuilding After Code Changes
+
+**CRITICAL:** After code changes, **always rebuild** containers, not just restart.
+
+```bash
+# ✅ CORRECT - Rebuild with new code
+docker-compose build backend-service
+docker-compose up -d backend-service
+
+# ❌ WRONG - Only restarts, doesn't include new code
+docker-compose restart backend-service
+```
+
+**Rules:**
+- Code changes require `docker-compose build`
+- Configuration changes (env vars) only need `docker-compose up -d`
+- New classes/files require rebuild
+- Changes to `application.yml` require rebuild (JAR is baked into image)
+
+### Checking Container Status
+
+```bash
+# Check running containers
+docker ps
+
+# Check container logs
+docker logs backend-service --tail 50
+
+# Check specific service logs
+docker-compose logs -f backend-service
+
+# Check port usage
+docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}" | grep 8080
+lsof -i :8080
+```
+
+### Port Conflict Resolution
+
+```bash
+# Step 1: Identify conflicting container
+docker ps | grep 8080
+# OR
+lsof -i :8080
+
+# Step 2: Stop conflicting container
+docker stop <container-name>
+
+# Step 3: Start docker-compose services
+docker-compose up
+```
+
+**Requirements:**
+- Always check port availability before `docker-compose up`
+- Stop conflicting containers before starting new services
+- Document port conflicts in docker-compose.yml comments
+
+## 🐛 Common Docker Mistakes to Avoid
+
+### ❌ Mistake 1: Invalid Environment Variable Syntax
+
+```yaml
+# ❌ WRONG
+CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:}
+
+# ✅ CORRECT
+CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
+```
+
+### ❌ Mistake 2: Not Rebuilding After Code Changes
+
+```bash
+# ❌ WRONG - New code not included
+docker-compose restart backend-service
+
+# ✅ CORRECT - Rebuild includes new code
+docker-compose build backend-service
+docker-compose up -d backend-service
+```
+
+### ❌ Mistake 3: Java Version Mismatch
+
+```dockerfile
+# ❌ WRONG - Java 21 but pom.xml uses Java 25
+FROM eclipse-temurin:21-jdk AS build
+
+# ✅ CORRECT - Matches pom.xml
+FROM eclipse-temurin:25-jdk AS build
+```
+
+### ❌ Mistake 4: Hardcoded Database Configuration
+
+```yaml
+# ❌ WRONG - Hardcoded values
+environment:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
+
+# ✅ CORRECT - Environment variable substitution
+environment:
+  LOCAL_DATASOURCE_URL: ${LOCAL_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/appdb}
+```
+
+### ❌ Mistake 5: Ignoring Port Conflicts
+
+```bash
+# ❌ WRONG - Ignore "port already allocated" error
+docker-compose up  # Fails silently
+
+# ✅ CORRECT - Check and resolve conflicts first
+docker ps | grep 8080
+docker stop conflicting-container
+docker-compose up
+```
+
+## 📋 Docker Compose Validation
+
+### Before Starting Services
+
+```bash
+# Validate docker-compose.yml syntax
+docker-compose config
+
+# Check for syntax errors
+docker-compose config --quiet
+
+# Dry run (shows what would be created)
+docker-compose config --services
+```
+
+**Requirements:**
+- Always run `docker-compose config` before `docker-compose up`
+- Fix any syntax errors before starting services
+- Verify environment variable interpolation
+
+## 🔍 Debugging Docker Issues
+
+### Container Not Starting
+
+```bash
+# Check logs
+docker logs <container-name>
+
+# Check exit code
+docker ps -a | grep <container-name>
+
+# Check resource usage
+docker stats <container-name>
+```
+
+### Build Failures
+
+```bash
+# Build with verbose output
+docker-compose build --no-cache backend-service
+
+# Check build logs
+docker-compose build backend-service 2>&1 | tee build.log
+```
+
+### Network Issues
+
+```bash
+# Check network connectivity
+docker network ls
+docker network inspect app-network
+
+# Test service connectivity
+docker exec -it backend-service ping postgres
+```
+
+## 🚀 Best Practices
+
+1. **Always use multi-stage builds** for smaller production images
+2. **Match Java versions** between Dockerfile and pom.xml
+3. **Use environment variable substitution** for all configuration
+4. **Rebuild after code changes**, not just restart
+5. **Check port availability** before starting services
+6. **Validate docker-compose.yml** with `docker-compose config`
+7. **Use health checks** for service dependencies
+8. **Document port conflicts** in comments
+9. **Never hardcode credentials** in docker-compose.yml
+10. **Use `.env` file** for actual environment values
+
+## 🔗 Related Standards
+
+- [Backend Standards](./enterprise-backend-standards.mdc) - Configuration patterns
+- [Architecture Patterns](./architecture-patterns.mdc) - Profile-based database switching
+- [Development Workflow](./development-workflow.mdc) - Docker workflow commands
+
+## 📝 Docker Compose File Checklist
+
+Before committing docker-compose.yml changes:
+
+- [ ] All environment variables use `${VARIABLE:-default}` syntax
+- [ ] No hardcoded credentials or URLs
+- [ ] Service dependencies use `condition: service_healthy`
+- [ ] Health checks configured for dependent services
+- [ ] Port conflicts documented in comments
+- [ ] Network configuration is correct
+- [ ] Volume mounts are appropriate
+- [ ] `docker-compose config` passes without errors

@@ -1,88 +1,57 @@
 # 📚 Documentation Index
 
-This directory contains all project documentation organized by category.
+All project documentation organized by category.
 
-## 📁 Directory Structure
+## 🚀 Start Here (New Engineer Path)
 
-```
-documentation/
-├── setup/              # Setup and installation guides
-├── guides/             # How-to guides and tutorials
-├── architecture/       # Architecture and design documents
-└── reference/         # Reference documentation
-```
+**If you're new and just want to make things work, follow exactly these steps in order:**
 
-## 📖 Documentation by Category
+1. **Setup & Run Everything**
+   - Read: [01_Getting Started](./quick-start/01_GETTING_STARTED.md) ⭐
+   - Goal: Docker up, services running, health check passing.
 
-### 🚀 Setup Guides (`setup/`)
+2. **Test the System**
+   - Read: [02_Testing APIs](./quick-start/02_TESTING_APIS.md) ⭐
+   - Goal: Create a payment order, verify a payment, and see data in the DB.
 
-Step-by-step guides for setting up and configuring the system:
+3. **Understand the Big Picture**
+   - Read: [03_Understanding Flows](./quick-start/03_UNDERSTANDING_FLOWS.md)
+   - Then skim: [01_Architecture Overview](./architecture/01_ARCHITECTURE.md) ⭐
 
-- **[Quick Start Guide](./setup/QUICK_START.md)** - Get up and running in minutes ⭐
-- **[Complete Setup Guide](./setup/SETUP_GUIDE.md)** - Full setup instructions for the enterprise backend
-- **[Database Setup](./setup/DATABASE_SETUP.md)** - Database configuration and setup
-- **[pgAdmin Setup](./setup/PGADMIN_SETUP.md)** - Configure and use pgAdmin 4 for database management
-- **[Supabase Setup](./setup/SUPABASE_SETUP.md)** - Set up and connect to Supabase Cloud Postgres
+> After these three steps, you can safely dive into the detailed docs below.
 
-### 📘 How-To Guides (`guides/`)
+## 📖 Documentation
 
-Practical guides for using and testing the system:
+### Setup (`setup/`) – Follow in Order
+- [01_Quick Start](./setup/01_QUICK_START.md) ⭐
+- [02_Complete Setup](./setup/02_SETUP_GUIDE.md)
+- [03_Database Setup](./setup/03_DATABASE_SETUP.md)
+- [04_pgAdmin Setup](./setup/04_PGADMIN_SETUP.md)
+- [05_Supabase Setup](./setup/05_SUPABASE_SETUP.md)
 
-- **[API Testing & Configuration](./guides/API_TESTING_CONFIG.md)** - Complete guide for:
-  - Testing APIs
-  - Getting JWT tokens using clerk-login.html
-  - Setting up ngrok for webhooks
-  - Viewing database tables
-  - Troubleshooting
-- **[Flow Documentation](./guides/FLOW_DOCUMENTATION.md)** - Detailed payment flow, API endpoints, request/response formats
+### Guides (`guides/`) – Deep Dives (Follow in Order)
+- [01_Detailed API Testing](./guides/01_API_TESTING_DETAILED.md) - Full testing playbook
+- [02_Webhook Setup](./guides/02_WEBHOOK_SETUP.md) - Clerk + ngrok webhooks
+- [03_Troubleshooting](./guides/03_TROUBLESHOOTING.md) - Common issues and fixes
+- [04_Detailed Flow Documentation](./guides/04_FLOW_DETAILED.md) - End-to-end technical flows
 
-### 🏗️ Architecture & Design (`architecture/`)
+### Quick Start (`quick-start/`) – Beginner Friendly (Follow in Order)
+- [01_Getting Started](./quick-start/01_GETTING_STARTED.md) ⭐
+- [02_Testing APIs](./quick-start/02_TESTING_APIS.md) ⭐
+- [03_Understanding Flows](./quick-start/03_UNDERSTANDING_FLOWS.md)
 
-Technical documentation about system design and implementation:
+### Architecture (`architecture/`) – Follow in Order
+- [01_Architecture Overview](./architecture/01_ARCHITECTURE.md) ⭐
+- [02_Implementation Summary](./architecture/02_IMPLEMENTATION_SUMMARY.md)
+- [Fixes & Improvements](./architecture/fixes/)
+  - [01_Mistakes Part 1](./architecture/fixes/01_MISTAKES_PART1.md) - Mistakes 1-5 (easier to read)
+  - [02_Mistakes & Design](./architecture/fixes/02_MISTAKES_AND_DESIGN.md) - Complete document
+  - [03_2026-01-23 Fixes](./architecture/fixes/03_2026-01-23/01_FIXES_AND_IMPROVEMENTS.md)
 
-- **[Architecture Overview](./architecture/ARCHITECTURE.md)** - Complete system architecture, design principles, and request lifecycle ⭐
-- **[Implementation Summary](./architecture/IMPLEMENTATION_SUMMARY.md)** - What was built, how it works, and key components
-- **[Mistakes & Design Decisions](./architecture/MISTAKES_AND_DESIGN.md)** - Design decisions, lessons learned, and common pitfalls
-- **[Fixes and Improvements](./architecture/FIXES_AND_IMPROVEMENTS.md)** - Detailed log of issues encountered and fixes applied in `feature/connect-supabase-again` branch
-
-### 📚 Reference (`reference/`)
-
-Reference documentation and additional resources:
-
-- **[Enterprise README](./reference/README_ENTERPRISE.md)** - Enterprise features and capabilities overview
-- **[Help](./reference/HELP.md)** - Additional resources and external links
-
-## 🗺️ Quick Navigation
-
-**New to the project?**
-
-1. Start with [Quick Start Guide](./setup/QUICK_START.md) ⭐
-2. Read [Architecture Overview](./architecture/ARCHITECTURE.md) for system overview ⭐
-3. Follow [Complete Setup Guide](./setup/SETUP_GUIDE.md) for detailed setup
-
-**Want to test the system?**
-
-- See [API Testing Guide](./guides/API_TESTING_CONFIG.md)
-
-**Setting up database?**
-
-- [Database Setup](./setup/DATABASE_SETUP.md)
-- [pgAdmin Setup](./setup/PGADMIN_SETUP.md)
-- [Supabase Setup](./setup/SUPABASE_SETUP.md)
-
-**Understanding the architecture?**
-
-- [Architecture Overview](./architecture/ARCHITECTURE.md) - Main architecture document
-- [Implementation Summary](./architecture/IMPLEMENTATION_SUMMARY.md) - What was built
-- [Mistakes & Design](./architecture/MISTAKES_AND_DESIGN.md) - Design decisions
-- [Fixes and Improvements](./architecture/FIXES_AND_IMPROVEMENTS.md) - Recent fixes and improvements log
-
-## 🔗 Related Documentation
-
-- **[Main README](../readme.md)** - Project overview and main documentation index
-- **[Quick Start Guide](./setup/QUICK_START.md)** - Quick start guide
-- **[Architecture Overview](./architecture/ARCHITECTURE.md)** - System architecture
+### Reference (`reference/`)
+- [Enterprise README](./reference/README_ENTERPRISE.md)
+- [Help](./reference/HELP.md)
 
 ---
 
-**Note:** All documentation files use relative paths. If you're viewing this from a different location, adjust paths accordingly.
+**Main README:** [../readme.md](../readme.md)

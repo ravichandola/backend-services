@@ -22,7 +22,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: false
+    show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -54,11 +54,16 @@ razorpay:
 logging:
   level:
     com.demo.backend: INFO
+    com.demo.backend.service: DEBUG
+    com.demo.backend.controller: DEBUG
     org.springframework.security: DEBUG
     org.flywaydb: INFO
     org.flywaydb.core: INFO
     org.springframework.boot.autoconfigure.jdbc: DEBUG
     com.zaxxer.hikari: DEBUG
+    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.data.jpa: DEBUG
 
 ---
 # PROD Profile - Supabase Cloud Postgres

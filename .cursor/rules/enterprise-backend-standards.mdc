@@ -244,6 +244,26 @@ private User user;
 - Use `@JoinColumn` explicitly
 - Consider `@OneToMany` with `mappedBy` for bidirectional
 
+## 🌐 API Gateway Standards
+
+See [API Gateway Standards](./api-gateway-standards.mdc) for detailed gateway patterns.
+
+**Key Points:**
+- Gateway validates JWT using Clerk JWKS
+- Gateway adds `X-User-Id` and `X-Org-Id` headers
+- Gateway allows webhook and payment endpoints without authentication
+- Gateway routes `/api/**` to backend-service
+
+## 💳 Payment Service Standards
+
+See [Payment Service Standards](./payment-service-standards.mdc) for detailed payment patterns.
+
+**Key Points:**
+- Razorpay integration for payment orders
+- Payment signature verification
+- Database persistence for orders and transactions
+- Error handling for payment failures
+
 ## 🧪 Testing Standards
 
 ### Unit Tests
@@ -300,6 +320,77 @@ class MyControllerIntegrationTest {
 - Test authorization scenarios
 - Clean up test data
 
+### Webhook Testing
+
+```java
+// ✅ GOOD - Test webhook signature verification
+@Test
+void shouldVerifyWebhookSignature() {
+    String payload = "{\"type\":\"user.created\",\"data\":{...}}";
+    String signature = calculateHMAC(payload, webhookSecret);
+    
+    boolean isValid = webhookService.verifySignature(signature, payload);
+    assertTrue(isValid);
+}
+
+// ✅ GOOD - Test webhook event processing
+@Test
+void shouldProcessUserCreatedEvent() {
+    WebhookEvent event = createUserCreatedEvent();
+    webhookService.processUserCreated(event.getData());
+    
+    verify(userRepository).save(any(User.class));
+    verify(userEventRepository).save(any(UserEvent.class));
+}
+```
+
+**Requirements:**
+- Test webhook signature verification with valid/invalid signatures
+- Test idempotency (processing same event twice)
+- Test event routing to correct handlers
+- Mock external dependencies (Clerk webhook format)
+
+### Gateway-to-Backend Integration Tests
+
+```java
+// ✅ GOOD - Test complete gateway → backend flow
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+class GatewayBackendIntegrationTest {
+    @Test
+    void shouldForwardRequestWithHeaders() {
+        // Test that gateway adds X-User-Id header
+        // Test that backend receives and uses header
+    }
+}
+```
+
+**Requirements:**
+- Test header enrichment in gateway
+- Test backend receives trusted headers
+- Test authorization flow end-to-end
+- Use WireMock or similar for gateway testing
+
+### Database Transaction Testing
+
+```java
+// ✅ GOOD - Test with transaction rollback
+@SpringBootTest
+@Transactional
+class PaymentServiceTest {
+    @Test
+    void shouldRollbackOnPaymentFailure() {
+        // Test that failed payment doesn't create order
+        // Transaction automatically rolls back
+    }
+}
+```
+
+**Requirements:**
+- Use `@Transactional` for test isolation
+- Test rollback scenarios
+- Verify database state after tests
+- Use `@DirtiesContext` if needed for state cleanup
+
 ## 🔍 Code Review Checklist
 
 ### Before Approving Code
@@ -311,10 +402,12 @@ class MyControllerIntegrationTest {
    - [ ] Input validation on all DTOs
 
 2. **Architecture**
-   - [ ] Follows trust model (gateway → backend)
+   - [ ] Follows trust model (gateway → backend) - see [Architecture Patterns](./architecture-patterns.mdc)
    - [ ] Uses `AuthorizationService` for permissions
    - [ ] Proper layer separation (Controller → Service → Repository)
    - [ ] No business logic in controllers
+   - [ ] Gateway patterns followed (if gateway changes) - see [API Gateway Standards](./api-gateway-standards.mdc)
+   - [ ] Payment patterns followed (if payment changes) - see [Payment Service Standards](./payment-service-standards.mdc)
 
 3. **Database**
    - [ ] Schema changes via Flyway migrations
@@ -333,6 +426,78 @@ class MyControllerIntegrationTest {
    - [ ] Authorization tests included
    - [ ] Integration tests for controllers
    - [ ] Edge cases covered
+
+## ⚠️ Error Handling Patterns
+
+### Custom Exception Hierarchy
+
+```java
+// ✅ GOOD - Custom exceptions for different error types
+public class PaymentException extends RuntimeException {
+    public PaymentException(String message) {
+        super(message);
+    }
+}
+
+public class UserNotFoundException extends RuntimeException {
+    public UserNotFoundException(String clerkUserId) {
+        super("User not found: " + clerkUserId);
+    }
+}
+
+public class AccessDeniedException extends RuntimeException {
+    public AccessDeniedException(String message) {
+        super(message);
+    }
+}
+```
+
+**Requirements:**
+- Create domain-specific exceptions
+- Use meaningful exception messages
+- Include context in exception messages
+- Log exceptions with appropriate levels
+
+### Error Response Format
+
+```java
+// ✅ GOOD - Consistent error response format
+@ExceptionHandler(PaymentException.class)
+public ResponseEntity<ErrorResponse> handlePaymentException(PaymentException e) {
+    log.error("Payment error: {}", e.getMessage());
+    ErrorResponse error = ErrorResponse.builder()
+        .error("PAYMENT_ERROR")
+        .message(e.getMessage())
+        .timestamp(LocalDateTime.now())
+        .build();
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+}
+```
+
+**Requirements:**
+- Use `@ExceptionHandler` for global exception handling
+- Return consistent error response format
+- Include error codes for client handling
+- Log errors with context
+- Don't expose internal details to clients
+
+### Logging Error Patterns
+
+```java
+// ✅ GOOD - Structured error logging
+try {
+    // Business logic
+} catch (RazorpayException e) {
+    log.error("Razorpay API error while creating order: {}", e.getMessage(), e);
+    throw new PaymentException("Failed to create payment order: " + e.getMessage());
+}
+```
+
+**Requirements:**
+- Log exceptions with full stack trace in catch blocks
+- Include context in log messages
+- Use appropriate log levels (ERROR for exceptions, WARN for recoverable issues)
+- Don't log sensitive information (secrets, passwords)
 
 ## ⚠️ Common Mistakes to Avoid
 
@@ -408,7 +573,7 @@ spring:
 ```
 
 ### Environment Variables
-- Use `${VARIABLE:-default}` syntax in docker-compose
+- Use `${VARIABLE:-default}` syntax in docker-compose (see [Docker Standards](./docker-standards.mdc))
 - Never hardcode secrets
 - Document required variables
 
