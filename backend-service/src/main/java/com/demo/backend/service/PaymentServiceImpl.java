@@ -11,23 +11,31 @@ import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
 import com.razorpay.Utils;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
     private final RazorpayClient razorpayClient;
     private final PaymentOrderRepository orderRepo;
     private final PaymentTransactionRepository txRepo;
 
-    @Value("${razorpay.secret}")
+    @Value("${razorpay.secret:}")
     private String razorpaySecret;
+
+    @Autowired(required = false)
+    public PaymentServiceImpl(RazorpayClient razorpayClient, 
+                              PaymentOrderRepository orderRepo,
+                              PaymentTransactionRepository txRepo) {
+        this.razorpayClient = razorpayClient;
+        this.orderRepo = orderRepo;
+        this.txRepo = txRepo;
+    }
 
     @Override
     public CreateOrderResponse createOrder(Long amount) {

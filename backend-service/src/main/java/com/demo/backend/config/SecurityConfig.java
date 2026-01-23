@@ -40,6 +40,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/health").permitAll()
                 // Payment APIs are public (can be called from frontend without JWT)
                 .requestMatchers("/api/payments/**").permitAll()
+                // Migration endpoints (for development/admin use)
+                .requestMatchers("/api/migrations/**").permitAll()
                 // All other endpoints require authentication (trust gateway)
                 .anyRequest().authenticated()
             )

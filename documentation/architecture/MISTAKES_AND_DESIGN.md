@@ -795,6 +795,176 @@ docker rm <container-name>
    - ✅ Fixed: Identified `springboot-app` container using port 8080
    - ✅ Fixed: Stopped conflicting container before starting docker-compose services
 
+9. **Database Profile Switching Configuration**
+
+   #### **Mistake:**
+   
+   - `docker-compose.yml` mein hardcoded datasource values the
+   - `.env` file se automatic switching nahi ho rahi thi
+   - Profile-based configuration properly configured nahi thi
+   - Result: Manual changes required for switching between dev/prod databases
+   
+   #### **Root Cause:**
+   
+   ```yaml
+   # docker-compose.yml - BEFORE (WRONG)
+   environment:
+     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb  # ❌ Hardcoded
+     SPRING_DATASOURCE_USERNAME: appuser  # ❌ Hardcoded
+     SPRING_DATASOURCE_PASSWORD: apppass  # ❌ Hardcoded
+   ```
+   
+   #### **Solution:**
+   
+   ```yaml
+   # docker-compose.yml - AFTER (CORRECT)
+   environment:
+     SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+     SUPABASE_DATASOURCE_URL: ${SUPABASE_DATASOURCE_URL:-jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres}
+     SUPABASE_DATASOURCE_USERNAME: ${SUPABASE_DATASOURCE_USERNAME:-postgres.kcykicebvvsshyirgldl}
+     SUPABASE_DATASOURCE_PASSWORD: ${SUPABASE_DATASOURCE_PASSWORD:-Adminpetsupbase12}
+     LOCAL_DATASOURCE_URL: ${LOCAL_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/appdb}
+     LOCAL_DATASOURCE_USERNAME: ${LOCAL_DATASOURCE_USERNAME:-appuser}
+     LOCAL_DATASOURCE_PASSWORD: ${LOCAL_DATASOURCE_PASSWORD:-apppass}
+   ```
+   
+   #### **Lesson Learned:**
+   
+   - Always use environment variable substitution in docker-compose
+   - Profile-based configuration requires proper environment variable setup
+   - `.env` file se automatic switching possible hai with proper configuration
+
+10. **Java 25 Build Failure**
+
+    #### **Mistake:**
+    
+    - Maven build failing with: `error: release version 25 not supported`
+    - Docker image Java 21 use kar rahi thi but code Java 25 compile kar raha tha
+    - Maven Compiler Plugin version outdated thi
+    
+    #### **Root Cause:**
+    
+    ```xml
+    <!-- pom.xml - BEFORE (WRONG) -->
+    <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <!-- ❌ No version specified - using old default -->
+        <configuration>
+            <source>25</source>  <!-- ❌ Deprecated syntax -->
+            <target>25</target>  <!-- ❌ Deprecated syntax -->
+        </configuration>
+    </plugin>
+    ```
+    
+    ```dockerfile
+    # Dockerfile - BEFORE (WRONG)
+    FROM eclipse-temurin:21-jdk AS build  # ❌ Java 21 but code needs 25
+    ```
+    
+    #### **Solution:**
+    
+    ```xml
+    <!-- pom.xml - AFTER (CORRECT) -->
+    <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.14.1</version>  <!-- ✅ Latest version with Java 25 support -->
+        <configuration>
+            <release>25</release>  <!-- ✅ Modern syntax -->
+        </configuration>
+    </plugin>
+    ```
+    
+    ```dockerfile
+    # Dockerfile - AFTER (CORRECT)
+    FROM eclipse-temurin:25-jdk AS build  # ✅ Java 25
+    FROM eclipse-temurin:25-jre  # ✅ Java 25 runtime
+    ```
+    
+    #### **Lesson Learned:**
+    
+    - Java 25 requires Maven Compiler Plugin 3.14.1+
+    - Use `<release>` instead of `<source>/<target>` for Java 9+
+    - Docker image version must match pom.xml Java version
+
+11. **Missing ObjectMapper Bean**
+
+    #### **Mistake:**
+    
+    - Application failed to start: `No qualifying bean of type 'com.fasterxml.jackson.databind.ObjectMapper'`
+    - `WebhookService` required `ObjectMapper` but Spring Boot wasn't providing it
+    
+    #### **Root Cause:**
+    
+    - Spring Boot auto-configuration should provide `ObjectMapper`
+    - But in some cases it may not be detected or configured properly
+    
+    #### **Solution:**
+    
+    ```java
+    // JacksonConfig.java - NEW
+    @Configuration
+    public class JacksonConfig {
+        @Bean
+        @Primary
+        public ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
+    }
+    ```
+    
+    #### **Lesson Learned:**
+    
+    - Explicit bean configuration more reliable than auto-configuration
+    - Always provide explicit configuration for critical beans
+
+12. **Flyway Migrations Not Running Automatically**
+
+    #### **Mistake:**
+    
+    - Flyway enabled tha but migrations automatically run nahi ho rahi thi
+    - No migration logs in application output
+    - Tables create nahi ho rahi thi
+    
+    #### **Root Cause:**
+    
+    - Flyway auto-configuration may not always work
+    - No explicit Flyway bean configuration
+    - No manual way to trigger migrations
+    
+    #### **Solution:**
+    
+    1. Created explicit Flyway configuration:
+    ```java
+    @Configuration
+    public class FlywayConfig {
+        @Bean
+        public Flyway flyway(DataSource dataSource) {
+            return Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
+                .schemas("public")
+                .load();
+        }
+    }
+    ```
+    
+    2. Created migration API endpoint:
+    ```java
+    @PostMapping("/api/migrations/migrate")
+    public ResponseEntity<Map<String, Object>> runMigrations() {
+        MigrateResult result = flyway.migrate();
+        // ...
+    }
+    ```
+    
+    #### **Lesson Learned:**
+    
+    - Explicit Flyway bean configuration more reliable
+    - Manual migration endpoint useful for debugging
+    - Always verify migrations ran successfully
+
 ---
 
 ## 🎓 Key Takeaways

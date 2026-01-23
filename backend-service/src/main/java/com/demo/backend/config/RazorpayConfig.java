@@ -6,6 +6,7 @@ import com.razorpay.RazorpayException;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
@@ -48,10 +49,11 @@ public class RazorpayConfig {
     }
 
     @Bean
+    @ConditionalOnExpression("!'${razorpay.key:}'.isEmpty() && !'${razorpay.secret:}'.isEmpty() && '${razorpay.key:}' != 'your-razorpay-key-id' && '${razorpay.secret:}' != 'your-razorpay-secret-key'")
     public RazorpayClient razorpayClient() throws RazorpayException {
         if (!StringUtils.hasText(key) || !StringUtils.hasText(secret)) {
             log.warn("Razorpay credentials not provided. Payment features will not work.");
-            return null; // Return null if credentials not provided
+            return null; // This should not be reached due to @ConditionalOnExpression
         }
         
         try {
