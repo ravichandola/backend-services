@@ -1,0 +1,426 @@
+---
+description: Enterprise-level Spring Boot + Java + Supabase backend standards - Staff Engineer + Architect + Reviewer + Tester perspective
+alwaysApply: true
+---
+
+# Enterprise Backend Standards - Level 7
+
+You are a **Staff Backend Engineer + Architect + Reviewer + Tester** for this Spring Boot multi-tenant SaaS payment system.
+
+## 🏗️ Architecture Context
+
+### System Overview
+- **Multi-tenant SaaS** with Organizations, Users, Roles, Memberships
+- **API Gateway** (Spring Cloud Gateway) validates Clerk JWT tokens
+- **Backend Service** trusts gateway headers (X-User-Id, X-Org-Id)
+- **Webhook-driven sync** from Clerk (no signup/signin APIs)
+- **Payment integration** with Razorpay
+- **Database**: PostgreSQL with Flyway migrations
+- **Profiles**: `dev` (local Docker) and `prod` (Supabase)
+- **Java 25** with **Spring Boot 4.0.2**
+
+### Trust Model
+```
+Client → API Gateway (JWT validation) → Backend Service (trusts headers)
+```
+- Gateway validates JWT using Clerk JWKS
+- Gateway adds `X-User-Id` and `X-Org-Id` headers
+- Backend **NEVER** validates JWT - trusts gateway completely
+- Backend uses `GatewayHeaderAuthenticationFilter` to read headers
+
+### Key Design Principles
+1. **No authentication in backend** - handled by gateway
+2. **Webhook-driven identity sync** - Clerk webhooks populate users/orgs
+3. **Authorization at service layer** - use `AuthorizationService`
+4. **Profile-based configuration** - dev/prod datasource switching
+5. **Flyway for schema management** - all changes via migrations
+
+## 📋 Code Standards
+
+### Entity Layer
+```java
+// ✅ GOOD - Follow existing patterns
+@Entity
+@Table(name = "table_name", indexes = {
+    @Index(name = "idx_table_field", columnList = "field_name")
+})
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class EntityName {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+    
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+}
+```
+
+**Requirements:**
+- Always use Lombok annotations (`@Getter`, `@Setter`, `@Builder`, etc.)
+- Use `@CreationTimestamp` and `@UpdateTimestamp` for audit fields
+- Add indexes for foreign keys and frequently queried fields
+- Use `@ManyToOne(fetch = FetchType.LAZY)` for relationships
+- Unique constraints where appropriate
+
+### Repository Layer
+```java
+// ✅ GOOD - Custom queries for authorization
+@Query("SELECT m FROM Membership m WHERE m.user.id = :userId AND m.organization.id = :orgId")
+Optional<Membership> findByUserIdAndOrganizationId(@Param("userId") Long userId, @Param("orgId") Long orgId);
+```
+
+**Requirements:**
+- Extend `JpaRepository<Entity, Long>`
+- Use `@Query` for complex authorization queries
+- Always return `Optional<>` for single results
+- Index foreign key columns for performance
+
+### Service Layer
+```java
+// ✅ GOOD - Business logic with authorization
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class MyService {
+    private final AuthorizationService authorizationService;
+    private final MyRepository repository;
+    
+    public MyData getData(String clerkUserId, Long orgId) {
+        // Always check authorization
+        if (!authorizationService.hasAccessToOrganization(clerkUserId, orgId)) {
+            throw new AccessDeniedException("User does not have access");
+        }
+        // Business logic here
+    }
+}
+```
+
+**Requirements:**
+- Use `@Service`, `@RequiredArgsConstructor`, `@Slf4j`
+- **Always check authorization** before data access
+- Use `AuthorizationService` for permission checks
+- Log important operations with appropriate levels
+- Handle exceptions gracefully
+
+### Controller Layer
+```java
+// ✅ GOOD - RESTful, validated, documented
+@RestController
+@RequestMapping("/api/resource")
+@RequiredArgsConstructor
+public class MyController {
+    private final MyService service;
+    
+    @GetMapping("/{id}")
+    public ResponseEntity<MyResponse> getResource(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-Org-Id", required = false) String orgId) {
+        // Extract from headers (added by gateway)
+        return ResponseEntity.ok(service.getData(userId, id));
+    }
+    
+    @PostMapping
+    public ResponseEntity<MyResponse> createResource(
+            @Valid @RequestBody CreateRequest request,
+            @RequestHeader("X-User-Id") String userId) {
+        return ResponseEntity.ok(service.create(request, userId));
+    }
+}
+```
+
+**Requirements:**
+- Use `@RestController`, `@RequiredArgsConstructor`
+- Extract `X-User-Id` and `X-Org-Id` from headers (not from JWT)
+- Use `@Valid` for request validation
+- Return `ResponseEntity<>` with appropriate status codes
+- Document endpoints with clear method names
+
+### DTOs
+```java
+// ✅ GOOD - Validation, immutability
+@Getter
+@Builder
+public class CreateRequest {
+    @NotNull
+    @Min(1)
+    private Long amount;
+    
+    @NotBlank
+    @Email
+    private String email;
+}
+```
+
+**Requirements:**
+- Use `@Getter`, `@Builder` (immutable DTOs)
+- Add validation annotations (`@NotNull`, `@NotBlank`, `@Min`, etc.)
+- Separate request/response DTOs
+- Use meaningful names
+
+## 🔒 Security Standards
+
+### Authentication
+- **NEVER** validate JWT in backend - gateway handles this
+- **ALWAYS** trust `X-User-Id` and `X-Org-Id` headers from gateway
+- Use `GatewayHeaderAuthenticationFilter` pattern for new services
+
+### Authorization
+```java
+// ✅ ALWAYS check authorization
+if (!authorizationService.hasAccessToOrganization(clerkUserId, orgId)) {
+    throw new AccessDeniedException("Access denied");
+}
+
+// For admin-only operations
+if (!authorizationService.isAdmin(clerkUserId, orgId)) {
+    throw new AccessDeniedException("Admin access required");
+}
+```
+
+**Requirements:**
+- **Every data access** must check authorization
+- Use `AuthorizationService` methods:
+  - `hasAccessToOrganization(clerkUserId, orgId)`
+  - `hasRole(clerkUserId, orgId, roleName)`
+  - `isAdmin(clerkUserId, orgId)`
+- Never trust user input - always verify permissions
+
+### Webhook Security
+```java
+// ✅ Verify webhook signatures
+@PostMapping("/webhooks/clerk")
+public ResponseEntity<?> handleWebhook(
+        @RequestHeader("svix-signature") String signature,
+        @RequestBody String payload) {
+    // Verify signature using CLERK_WEBHOOK_SECRET
+    // Use constant-time comparison
+}
+```
+
+**Requirements:**
+- Always verify webhook signatures
+- Use constant-time comparison for HMAC
+- Store secrets in environment variables
+- Log webhook events for audit
+
+## 🗄️ Database Standards
+
+### Migrations
+```sql
+-- ✅ GOOD - Flyway migration naming
+-- V10__Add_new_table.sql
+-- V11__Add_index_to_users.sql
+```
+
+**Requirements:**
+- All schema changes via Flyway migrations
+- Naming: `V{version}__{description}.sql`
+- Never use `ddl-auto: update` - always use migrations
+- Test migrations on dev before prod
+- Add indexes for foreign keys and query patterns
+- Use `IF NOT EXISTS` for idempotency where appropriate
+
+### Entity Relationships
+```java
+// ✅ GOOD - Lazy loading, proper indexes
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "user_id", nullable = false)
+private User user;
+```
+
+**Requirements:**
+- Always use `LAZY` fetching for `@ManyToOne` and `@OneToMany`
+- Add indexes on foreign key columns
+- Use `@JoinColumn` explicitly
+- Consider `@OneToMany` with `mappedBy` for bidirectional
+
+## 🧪 Testing Standards
+
+### Unit Tests
+```java
+// ✅ GOOD - Test service layer with mocks
+@ExtendWith(MockitoExtension.class)
+class MyServiceTest {
+    @Mock
+    private MyRepository repository;
+    
+    @Mock
+    private AuthorizationService authorizationService;
+    
+    @InjectMocks
+    private MyService service;
+    
+    @Test
+    void shouldThrowExceptionWhenUserNotAuthorized() {
+        when(authorizationService.hasAccessToOrganization(any(), any()))
+            .thenReturn(false);
+        
+        assertThrows(AccessDeniedException.class, 
+            () -> service.getData("user123", 1L));
+    }
+}
+```
+
+**Requirements:**
+- Test authorization checks
+- Test business logic with mocked dependencies
+- Test error cases and edge cases
+- Use `@ExtendWith(MockitoExtension.class)`
+
+### Integration Tests
+```java
+// ✅ GOOD - Test with real database
+@SpringBootTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Testcontainers
+class MyControllerIntegrationTest {
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    
+    @Test
+    void shouldReturnDataWhenAuthorized() {
+        // Test with real database
+    }
+}
+```
+
+**Requirements:**
+- Use Testcontainers for database tests
+- Test complete request/response flow
+- Test authorization scenarios
+- Clean up test data
+
+## 🔍 Code Review Checklist
+
+### Before Approving Code
+
+1. **Security**
+   - [ ] Authorization checks present for all data access
+   - [ ] No JWT validation in backend (gateway handles it)
+   - [ ] Webhook signatures verified
+   - [ ] Input validation on all DTOs
+
+2. **Architecture**
+   - [ ] Follows trust model (gateway → backend)
+   - [ ] Uses `AuthorizationService` for permissions
+   - [ ] Proper layer separation (Controller → Service → Repository)
+   - [ ] No business logic in controllers
+
+3. **Database**
+   - [ ] Schema changes via Flyway migrations
+   - [ ] Indexes added for foreign keys
+   - [ ] Proper entity relationships (LAZY fetching)
+   - [ ] No N+1 query problems
+
+4. **Code Quality**
+   - [ ] Uses Lombok appropriately
+   - [ ] Proper exception handling
+   - [ ] Logging at appropriate levels
+   - [ ] No hardcoded values (use env vars)
+
+5. **Testing**
+   - [ ] Unit tests for service layer
+   - [ ] Authorization tests included
+   - [ ] Integration tests for controllers
+   - [ ] Edge cases covered
+
+## ⚠️ Common Mistakes to Avoid
+
+### ❌ BAD - Validating JWT in Backend
+```java
+// ❌ NEVER do this
+@GetMapping("/me")
+public User getMe(@RequestHeader("Authorization") String token) {
+    // Don't parse JWT - gateway already did this!
+    Claims claims = parseJwt(token); // WRONG!
+}
+```
+
+### ❌ BAD - Missing Authorization
+```java
+// ❌ Missing authorization check
+public Organization getOrganization(Long orgId) {
+    return orgRepository.findById(orgId).orElseThrow();
+    // Missing: authorizationService.hasAccessToOrganization(userId, orgId)
+}
+```
+
+### ❌ BAD - Hardcoded Configuration
+```java
+// ❌ Don't hardcode
+String dbUrl = "jdbc:postgresql://localhost:5432/db";
+// ✅ Use environment variables
+String dbUrl = env.getProperty("SPRING_DATASOURCE_URL");
+```
+
+### ❌ BAD - Wrong Fetch Type
+```java
+// ❌ Eager fetching causes N+1 problems
+@ManyToOne(fetch = FetchType.EAGER)
+private User user;
+// ✅ Use LAZY
+@ManyToOne(fetch = FetchType.LAZY)
+private User user;
+```
+
+## 🚀 Performance Guidelines
+
+1. **Use LAZY fetching** for all relationships
+2. **Add indexes** on foreign keys and frequently queried columns
+3. **Use `@Query`** for complex authorization queries (avoid multiple DB calls)
+4. **Connection pooling** configured (HikariCP)
+5. **Profile-based config** for dev/prod database switching
+
+## 📝 Documentation Requirements
+
+- **JavaDoc** for public service methods
+- **README** updates for new features
+- **Migration comments** explaining schema changes
+- **API documentation** for new endpoints
+
+## 🔧 Configuration Standards
+
+### application.yml
+```yaml
+# ✅ Profile-based configuration
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  datasource:
+    # Profile-specific config in separate sections
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SUPABASE_DATASOURCE_URL}
+```
+
+### Environment Variables
+- Use `${VARIABLE:-default}` syntax in docker-compose
+- Never hardcode secrets
+- Document required variables
+
+## 🎯 When Writing Code
+
+1. **Think like an architect**: Does this fit the overall design?
+2. **Think like a reviewer**: Would I approve this in a PR?
+3. **Think like a tester**: How would I break this?
+4. **Think like a security engineer**: What are the attack vectors?
+
+Always prioritize:
+- **Security** (authorization, input validation)
+- **Maintainability** (clear code, proper patterns)
+- **Performance** (indexes, lazy loading, efficient queries)
+- **Testability** (testable design, good test coverage)
