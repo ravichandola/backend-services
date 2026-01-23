@@ -77,27 +77,34 @@ docker-compose up --build
 
 ### Using .env file (Recommended)
 
-Create a `.env` file in project root:
+The `.env` file in project root automatically configures database switching:
 
 ```env
-# Razorpay
-RAZORPAY_KEY=rzp_test_xxxxx
-RAZORPAY_SECRET=your-secret-key
+# Database Profile Selection
+# Use 'dev' for local Docker Postgres (default)
+# Use 'prod' for Supabase Cloud Postgres
+SPRING_PROFILES_ACTIVE=prod  # or 'dev' for local
 
-# Database Profile (optional - defaults to 'prod')
-# SPRING_PROFILES_ACTIVE=prod  # Supabase (default)
-# SPRING_PROFILES_ACTIVE=dev   # Local Docker
+# ============================================
+# Supabase Database Configuration (PROD Profile)
+# ============================================
+SUPABASE_DATASOURCE_URL=jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres
+SUPABASE_DATASOURCE_USERNAME=postgres.kcykicebvvsshyirgldl
+SUPABASE_DATASOURCE_PASSWORD=Adminpetsupbase12
 
-# Override Supabase credentials (optional - has defaults)
-SPRING_DATASOURCE_URL=jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres
-SPRING_DATASOURCE_USERNAME=postgres.kcykicebvvsshyirgldl
-SPRING_DATASOURCE_PASSWORD=Adminpetsupbase12
-
-# Override Local Docker credentials (optional - has defaults)
-# SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/appdb
-# SPRING_DATASOURCE_USERNAME=appuser
-# SPRING_DATASOURCE_PASSWORD=apppass
+# ============================================
+# Local Docker Postgres Configuration (DEV Profile)
+# ============================================
+POSTGRES_DB=appdb
+LOCAL_DATASOURCE_URL=jdbc:postgresql://postgres:5432/appdb
+LOCAL_DATASOURCE_USERNAME=appuser
+LOCAL_DATASOURCE_PASSWORD=apppass
 ```
+
+**Key Points:**
+- Change `SPRING_PROFILES_ACTIVE` to switch between databases
+- All variables are automatically loaded by docker-compose
+- No need to manually edit docker-compose.yml
 
 ### Using Command Line
 
@@ -133,46 +140,55 @@ SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 
 ## 🔄 Switching Between Databases
 
-### From Supabase to Local Docker
+### Automatic Switching via .env
 
-1. **Start Docker Postgres:**
+**Switch to Supabase (Production):**
+```bash
+# In .env file, set:
+SPRING_PROFILES_ACTIVE=prod
 
-   ```bash
-   docker-compose up postgres -d
-   ```
+# Restart containers
+docker-compose down
+docker-compose up -d
+```
 
-2. **Run app with dev profile:**
-   ```bash
-   SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
-   ```
+**Switch to Local Docker (Development):**
+```bash
+# In .env file, set:
+SPRING_PROFILES_ACTIVE=dev
 
-### From Local Docker to Supabase
+# Restart containers
+docker-compose down
+docker-compose up -d
+```
 
-1. **Stop Docker Postgres (optional):**
+### Manual Switching (Without Docker)
 
-   ```bash
-   docker-compose down
-   ```
+**From Supabase to Local Docker:**
+1. Start Docker Postgres: `docker-compose up postgres -d`
+2. Run app: `SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run`
 
-2. **Run app (defaults to prod/Supabase):**
-   ```bash
-   ./mvnw spring-boot:run
-   ```
+**From Local Docker to Supabase:**
+1. Run app: `SPRING_PROFILES_ACTIVE=prod ./mvnw spring-boot:run`
 
 ---
 
 ## 🐳 Docker Compose Behavior
 
-When you run `docker-compose up`, the app service automatically:
+When you run `docker-compose up`, the services:
 
-- Uses `dev` profile
-- Connects to local `postgres` service
-- Ignores Supabase configuration
+- Read `SPRING_PROFILES_ACTIVE` from `.env` file
+- Automatically use correct database based on profile
+- Pass all environment variables from `.env` to containers
+
+**Profile Selection:**
+- `SPRING_PROFILES_ACTIVE=prod` → Connects to Supabase
+- `SPRING_PROFILES_ACTIVE=dev` → Connects to Local Docker Postgres
 
 This allows you to:
-
-- Keep Supabase as default for standalone runs
-- Use local Docker when running full stack
+- Switch databases by changing one variable in `.env`
+- Keep configuration centralized
+- No need to edit docker-compose.yml
 
 ---
 
@@ -209,8 +225,70 @@ SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 
 ---
 
+## 🗄️ Running Database Migrations
+
+### Automatic Migration (On Startup)
+
+Flyway is configured to run migrations automatically when the application starts. However, if migrations don't run automatically, you can trigger them manually.
+
+### Manual Migration via API
+
+**Run Migrations:**
+```bash
+curl -X POST http://localhost:8081/api/migrations/migrate
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "migrationsExecuted": 9,
+  "currentVersion": "9",
+  "message": "Migrations completed successfully"
+}
+```
+
+**Check Migration Status:**
+```bash
+curl -X POST http://localhost:8081/api/migrations/info
+```
+
+**Response:**
+```json
+{
+  "currentVersion": "9",
+  "pendingMigrations": 0,
+  "allMigrations": 9
+}
+```
+
+### Manual Migration via pgAdmin
+
+1. Connect to Supabase in pgAdmin (see pgAdmin Setup guide)
+2. Open Query Tool
+3. Run the SQL script: `run-migrations.sql` (located in project root)
+4. All tables will be created
+
+### Expected Tables After Migration
+
+After running migrations, you should see these tables in the `public` schema:
+
+1. `users` - User identity data from Clerk
+2. `organizations` - Multi-tenant organizations
+3. `roles` - Authorization roles (ADMIN, USER)
+4. `memberships` - User-organization-role relationships
+5. `user_events` - Audit trail for user webhooks
+6. `organization_events` - Audit trail for org webhooks
+7. `auth_sessions` - Authentication session tracking
+8. `payment_order` - Razorpay payment orders
+9. `payment_transaction` - Razorpay payment transactions
+10. `flyway_schema_history` - Flyway migration tracking
+
+---
+
 ## 📚 Additional Resources
 
 - [Main README](../../readme.md) - Complete project documentation
 - [Flow Documentation](../guides/FLOW_DOCUMENTATION.md) - API and flow details
 - [pgAdmin Setup](./PGADMIN_SETUP.md) - pgAdmin configuration guide
+- [Fixes and Improvements](../architecture/FIXES_AND_IMPROVEMENTS.md) - Detailed log of issues and fixes

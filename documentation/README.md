@@ -43,6 +43,7 @@ Technical documentation about system design and implementation:
 - **[Architecture Overview](./architecture/ARCHITECTURE.md)** - Complete system architecture, design principles, and request lifecycle ⭐
 - **[Implementation Summary](./architecture/IMPLEMENTATION_SUMMARY.md)** - What was built, how it works, and key components
 - **[Mistakes & Design Decisions](./architecture/MISTAKES_AND_DESIGN.md)** - Design decisions, lessons learned, and common pitfalls
+- **[Fixes and Improvements](./architecture/FIXES_AND_IMPROVEMENTS.md)** - Detailed log of issues encountered and fixes applied in `feature/connect-supabase-again` branch
 
 ### 📚 Reference (`reference/`)
 
@@ -74,6 +75,7 @@ Reference documentation and additional resources:
 - [Architecture Overview](./architecture/ARCHITECTURE.md) - Main architecture document
 - [Implementation Summary](./architecture/IMPLEMENTATION_SUMMARY.md) - What was built
 - [Mistakes & Design](./architecture/MISTAKES_AND_DESIGN.md) - Design decisions
+- [Fixes and Improvements](./architecture/FIXES_AND_IMPROVEMENTS.md) - Recent fixes and improvements log
 
 ## 🔗 Related Documentation
 

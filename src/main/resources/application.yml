@@ -39,25 +39,25 @@ razorpay:
   secret: ${RAZORPAY_SECRET:your-razorpay-secret-key}
 
 ---
-# PROD Profile - Supabase Cloud Postgres (DEFAULT)
+# PROD Profile - Supabase Cloud Postgres
 spring:
   config:
     activate:
       on-profile: prod
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres.kcykicebvvsshyirgldl}
-    password: ${SPRING_DATASOURCE_PASSWORD:Adminpetsupbase12}
+    url: ${SUPABASE_DATASOURCE_URL:jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres}
+    username: ${SUPABASE_DATASOURCE_USERNAME:postgres.kcykicebvvsshyirgldl}
+    password: ${SUPABASE_DATASOURCE_PASSWORD:Adminpetsupbase12}
 
 ---
-# DEV Profile - Local Docker Postgres (for mocking/testing)
+# DEV Profile - Local Docker Postgres
 spring:
   config:
     activate:
       on-profile: dev
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/appdb}
-    username: ${SPRING_DATASOURCE_USERNAME:appuser}
-    password: ${SPRING_DATASOURCE_PASSWORD:apppass}
+    url: ${LOCAL_DATASOURCE_URL:jdbc:postgresql://postgres:5432/appdb}
+    username: ${LOCAL_DATASOURCE_USERNAME:appuser}
+    password: ${LOCAL_DATASOURCE_PASSWORD:apppass}

@@ -4,15 +4,15 @@ services:
     container_name: postgres-db
     restart: always
     environment:
-      POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: apppass
-      POSTGRES_DB: appdb
+      POSTGRES_USER: ${LOCAL_DATASOURCE_USERNAME:-appuser}
+      POSTGRES_PASSWORD: ${LOCAL_DATASOURCE_PASSWORD:-apppass}
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U appuser -d appdb"]
+      test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DATASOURCE_USERNAME:-appuser} -d ${POSTGRES_DB:-appdb}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -49,10 +49,14 @@ services:
     ports:
       - "8081:8081"
     environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
-      SPRING_DATASOURCE_USERNAME: appuser
-      SPRING_DATASOURCE_PASSWORD: apppass
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # Profile-specific datasource variables (automatically selected by Spring based on profile)
+      SUPABASE_DATASOURCE_URL: ${SUPABASE_DATASOURCE_URL:-jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres}
+      SUPABASE_DATASOURCE_USERNAME: ${SUPABASE_DATASOURCE_USERNAME:-postgres.kcykicebvvsshyirgldl}
+      SUPABASE_DATASOURCE_PASSWORD: ${SUPABASE_DATASOURCE_PASSWORD:-Adminpetsupbase12}
+      LOCAL_DATASOURCE_URL: ${LOCAL_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/appdb}
+      LOCAL_DATASOURCE_USERNAME: ${LOCAL_DATASOURCE_USERNAME:-appuser}
+      LOCAL_DATASOURCE_PASSWORD: ${LOCAL_DATASOURCE_PASSWORD:-apppass}
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
       RAZORPAY_KEY: ${RAZORPAY_KEY:-}
       RAZORPAY_SECRET: ${RAZORPAY_SECRET:-}
@@ -75,6 +79,8 @@ services:
     networks:
       - app-network
 
+  # NOTE: If running payment-service locally (not in Docker), stop this container first
+  # to free port 8082: docker stop payment-service
   payment-service:
     build:
       context: .
@@ -87,10 +93,14 @@ services:
     ports:
       - "8082:8082"
     environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
-      SPRING_DATASOURCE_USERNAME: appuser
-      SPRING_DATASOURCE_PASSWORD: apppass
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # Profile-specific datasource variables (automatically selected by Spring based on profile)
+      SUPABASE_DATASOURCE_URL: ${SUPABASE_DATASOURCE_URL:-jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres}
+      SUPABASE_DATASOURCE_USERNAME: ${SUPABASE_DATASOURCE_USERNAME:-postgres.kcykicebvvsshyirgldl}
+      SUPABASE_DATASOURCE_PASSWORD: ${SUPABASE_DATASOURCE_PASSWORD:-Adminpetsupbase12}
+      LOCAL_DATASOURCE_URL: ${LOCAL_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/appdb}
+      LOCAL_DATASOURCE_USERNAME: ${LOCAL_DATASOURCE_USERNAME:-appuser}
+      LOCAL_DATASOURCE_PASSWORD: ${LOCAL_DATASOURCE_PASSWORD:-apppass}
       RAZORPAY_KEY: ${RAZORPAY_KEY:-}
       RAZORPAY_SECRET: ${RAZORPAY_SECRET:-}
     networks:

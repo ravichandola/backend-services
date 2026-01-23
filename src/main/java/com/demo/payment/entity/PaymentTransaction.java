@@ -19,11 +19,19 @@ public class PaymentTransaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "razorpay_payment_id")
     private String razorpayPaymentId;
+    
+    @Column(name = "razorpay_order_id")
     private String razorpayOrderId;
+    
+    @Column(name = "razorpay_signature")
     private String razorpaySignature;
+    
+    @Column(name = "status", nullable = false)
     private String status;
 
     @CreationTimestamp
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

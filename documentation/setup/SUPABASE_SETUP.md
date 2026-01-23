@@ -16,65 +16,74 @@ This guide explains how to:
 
 ## 🗄️ Step 1: Create Tables in Supabase
 
-The application uses **Flyway** to automatically create tables when it starts. To create tables in Supabase:
+The application uses **Flyway** to manage database migrations. To create tables in Supabase:
 
-### Option 1: Run Application (Automatic Migration)
+### Option 1: Run Migrations via API (Recommended)
 
-Simply start the application with the `prod` profile (default):
+1. **Start the application:**
+   ```bash
+   # Make sure SPRING_PROFILES_ACTIVE=prod in .env
+   docker-compose up -d backend-service
+   ```
 
-```bash
-# This will automatically run Flyway migrations on Supabase
-./mvnw spring-boot:run
+2. **Trigger migrations via API:**
+   ```bash
+   curl -X POST http://localhost:8081/api/migrations/migrate
+   ```
+
+3. **Verify migrations:**
+   ```bash
+   curl -X POST http://localhost:8081/api/migrations/info
+   ```
+
+**Response:**
+```json
+{
+  "success": true,
+  "migrationsExecuted": 9,
+  "currentVersion": "9",
+  "message": "Migrations completed successfully"
+}
 ```
+
+### Option 2: Automatic Migration (On Startup)
+
+Flyway is configured to run migrations automatically when the application starts. However, if migrations don't run automatically, use Option 1.
 
 **What happens:**
 
 - Flyway checks for existing migrations in Supabase
-- Creates `payment_order` and `payment_transaction` tables if they don't exist
+- Creates all required tables if they don't exist
 - Creates all indexes
-- You'll see migration logs in the console
+- Updates `flyway_schema_history` table
 
-### Option 2: Manual Migration (If Needed)
+### Option 3: Manual Migration via pgAdmin
 
-If you want to verify or manually run migrations:
+1. Connect to Supabase in pgAdmin (see Step 2 below)
+2. Open Query Tool
+3. Run the SQL script: `run-migrations.sql` (located in project root)
+4. All tables will be created
 
-1. **Check Flyway status:**
+### Verify Tables Exist
 
-   ```bash
-   # Start app and check logs
-   ./mvnw spring-boot:run
-   # Look for: "Flyway migration successful" or migration logs
-   ```
-
-2. **Verify tables exist:**
-   - Connect to Supabase using pgAdmin (see Step 2 below)
-   - Check if `payment_order` and `payment_transaction` tables exist
+After running migrations, connect to Supabase using pgAdmin and check:
+- `public` schema > "Tables" folder
+- You should see all application tables listed
 
 ### Expected Tables After Migration
 
-After running migrations, you should see:
+After running migrations, you should see these tables in the `public` schema:
 
-1. **`payment_order`** table with:
-
-   - `id` (BIGSERIAL PRIMARY KEY)
-   - `razorpay_order_id` (VARCHAR, UNIQUE)
-   - `amount` (BIGINT)
-   - `currency` (VARCHAR)
-   - `status` (VARCHAR)
-   - `created_at` (TIMESTAMP)
-   - Indexes: `idx_payment_order_razorpay_order_id`, `idx_payment_order_status`
-
-2. **`payment_transaction`** table with:
-
-   - `id` (BIGSERIAL PRIMARY KEY)
-   - `razorpay_payment_id` (VARCHAR)
-   - `razorpay_order_id` (VARCHAR)
-   - `razorpay_signature` (VARCHAR)
-   - `status` (VARCHAR)
-   - `created_at` (TIMESTAMP)
-   - Indexes: `idx_payment_transaction_razorpay_payment_id`, `idx_payment_transaction_razorpay_order_id`, `idx_payment_transaction_status`
-
-3. **`flyway_schema_history`** table (Flyway's internal tracking table)
+1. **`users`** - User identity data synced from Clerk webhooks
+2. **`organizations`** - Multi-tenant organizations
+3. **`roles`** - Authorization roles (ADMIN, USER)
+4. **`memberships`** - User-organization-role relationships
+5. **`user_events`** - Audit trail for user webhooks
+6. **`organization_events`** - Audit trail for org webhooks
+7. **`auth_sessions`** - Authentication session tracking
+8. **`payment_order`** - Razorpay payment orders
+9. **`payment_transaction`** - Razorpay payment transactions
+10. **`flyway_schema_history`** - Flyway migration tracking (internal)
 
 ---
 
@@ -119,7 +128,11 @@ You can connect to Supabase using either:
 4. **Verify Connection:**
    - Expand the server in left sidebar
    - Navigate to: `Databases` → `postgres` → `Schemas` → `public` → `Tables`
-   - You should see `payment_order` and `payment_transaction` tables
+   - You should see all application tables:
+     - `users`, `organizations`, `roles`, `memberships`
+     - `user_events`, `organization_events`, `auth_sessions`
+     - `payment_order`, `payment_transaction`
+     - `flyway_schema_history`
 
 ### Option B: Using Desktop pgAdmin (Recommended) ⭐
 
@@ -179,9 +192,16 @@ Desktop pgAdmin works better for external databases like Supabase.
    ```
    table_name
    --------------------
+   auth_sessions
    flyway_schema_history
+   memberships
+   organization_events
+   organizations
    payment_order
    payment_transaction
+   roles
+   user_events
+   users
    ```
 
 ### Check Table Structure
