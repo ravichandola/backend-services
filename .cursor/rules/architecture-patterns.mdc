@@ -1,0 +1,387 @@
+---
+description: Architecture patterns and design decisions from project documentation
+alwaysApply: true
+---
+
+# Architecture Patterns and Design Decisions
+
+## 🏗️ Trust Model: Gateway → Backend
+
+### Core Principle
+
+**Backend NEVER validates JWT - Gateway handles all authentication**
+
+```
+Client → API Gateway (JWT validation) → Backend Service (trusts headers)
+```
+
+### Implementation Pattern
+
+```java
+// ✅ CORRECT - Gateway validates JWT and adds headers
+// API Gateway: JwtAuthenticationFilter
+- Validates JWT using Clerk JWKS
+- Extracts user ID and org ID from JWT claims
+- Adds headers: X-User-Id, X-Org-Id
+- Forwards request to backend
+
+// ✅ CORRECT - Backend trusts gateway headers
+// Backend: GatewayHeaderAuthenticationFilter
+- Reads X-User-Id and X-Org-Id headers
+- Creates Authentication object from headers
+- Does NOT parse JWT (trusts gateway)
+```
+
+**Requirements:**
+- Gateway: Validate JWT, add trusted headers (see [API Gateway Standards](./api-gateway-standards.mdc))
+- Backend: Trust headers, never validate JWT (see [Backend Standards](./enterprise-backend-standards.mdc))
+- Single point of authentication (gateway)
+- Backend uses `GatewayHeaderAuthenticationFilter` pattern
+
+### ❌ Common Mistakes
+
+```java
+// ❌ WRONG - Backend validating JWT
+@GetMapping("/me")
+public User getMe(@RequestHeader("Authorization") String token) {
+    Claims claims = parseJwt(token); // WRONG - Gateway already did this!
+}
+
+// ❌ WRONG - Missing authentication filter
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) {
+    http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated());
+    // Missing: .addFilterBefore(gatewayHeaderAuthenticationFilter, ...)
+}
+```
+
+## 🔐 Authentication & Authorization Patterns
+
+### Authentication (Gateway Responsibility)
+
+```java
+// ✅ CORRECT - Gateway JWT validation
+@Component
+public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<Object> {
+    // Validates JWT signature using JWKS
+    // Validates JWT expiration
+    // Validates JWT issuer
+    // Extracts user ID and org ID
+    // Adds X-User-Id and X-Org-Id headers
+}
+```
+
+### Authorization (Backend Responsibility)
+
+```java
+// ✅ CORRECT - Service-layer authorization
+@Service
+public class MyService {
+    private final AuthorizationService authorizationService;
+    
+    public MyData getData(String clerkUserId, Long orgId) {
+        // ALWAYS check authorization before data access
+        if (!authorizationService.hasAccessToOrganization(clerkUserId, orgId)) {
+            throw new AccessDeniedException("Access denied");
+        }
+        // Business logic here
+    }
+}
+```
+
+**Requirements:**
+- **Every data access** must check authorization
+- Use `AuthorizationService` for permission checks
+- Never trust user input - always verify permissions
+- Check at service layer, not just controller layer
+
+## 🔄 Webhook-Driven Identity Sync
+
+### Core Principle
+
+**Backend does NOT rely on signup/signin API calls - uses Clerk Webhooks**
+
+### Implementation Pattern
+
+```java
+// ✅ CORRECT - Webhook-driven sync
+@PostMapping("/api/webhooks/clerk")
+public ResponseEntity<?> handleWebhook(
+    @RequestHeader("svix-signature") String signature,
+    @RequestBody String payload) {
+    
+    // 1. Verify webhook signature (HMAC SHA256)
+    verifySignature(signature, payload);
+    
+    // 2. Parse event type
+    String eventType = parseEventType(payload);
+    
+    // 3. Route to appropriate handler
+    switch (eventType) {
+        case "user.created" -> webhookService.processUserCreated(data);
+        case "organization.created" -> webhookService.processOrganizationCreated(data);
+        // ...
+    }
+    
+    // 4. Store event in audit table
+    eventRepository.save(event);
+}
+```
+
+**Requirements:**
+- Always verify webhook signatures (constant-time comparison)
+- Handle events: `user.created`, `user.updated`, `organization.created`, `organizationMembership.created`, `organizationMembership.deleted`
+- Store full webhook payload in audit tables
+- Idempotent event processing (check for existing records)
+
+### Webhook Security
+
+```java
+// ✅ CORRECT - Constant-time signature verification
+private boolean verifySignature(String signature, String payload) {
+    String expectedSignature = calculateHMAC(payload, webhookSecret);
+    return MessageDigest.isEqual(
+        expectedSignature.getBytes(),
+        signature.getBytes()
+    ); // Constant-time comparison
+}
+```
+
+## 🗄️ Database Profile Switching
+
+### Pattern: Dev/Prod Database Switching
+
+```yaml
+# application.yml - Profile-based configuration
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:-dev}
+
+---
+# PROD Profile - Supabase Cloud Postgres
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SUPABASE_DATASOURCE_URL}
+    username: ${SUPABASE_DATASOURCE_USERNAME}
+    password: ${SUPABASE_DATASOURCE_PASSWORD}
+
+---
+# DEV Profile - Local Docker Postgres
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: ${LOCAL_DATASOURCE_URL}
+    username: ${LOCAL_DATASOURCE_USERNAME}
+    password: ${LOCAL_DATASOURCE_PASSWORD}
+```
+
+**Requirements:**
+- Use Spring profiles for environment-specific configuration
+- Never hardcode database URLs in code
+- Use environment variables with sensible defaults
+- Support switching via `SPRING_PROFILES_ACTIVE` environment variable
+
+## 🔧 Configuration Management
+
+### Environment Variables Pattern
+
+```yaml
+# ✅ CORRECT - Environment variables with defaults
+clerk:
+  jwks:
+    url: ${CLERK_JWKS_URL:-https://unique-lark-93.clerk.accounts.dev/.well-known/jwks.json}
+  issuer: ${CLERK_ISSUER:-https://unique-lark-93.clerk.accounts.dev}
+```
+
+**Requirements:**
+- Always use `${VARIABLE:-default}` syntax
+- Provide sensible defaults for development
+- Document required environment variables
+- Never hardcode secrets or URLs
+
+### Clerk JWKS URL Format
+
+**CRITICAL:** Clerk JWKS endpoint format is specific:
+
+```
+✅ CORRECT: https://<instance>.clerk.accounts.dev/.well-known/jwks.json
+❌ WRONG: https://api.clerk.dev/v1/jwks
+❌ WRONG: https://<instance>.clerk.accounts.dev/v1/jwks
+```
+
+**Requirements:**
+- Always verify actual Clerk endpoint URL
+- Use `.well-known/jwks.json` format
+- Test endpoint accessibility before configuration
+
+## 🚨 Common Architecture Mistakes
+
+### ❌ Mistake 1: Missing Authentication Filter
+
+```java
+// ❌ WRONG - SecurityConfig without authentication filter
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) {
+    http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated());
+    // Missing filter - requests will always fail with 403
+}
+
+// ✅ CORRECT - Add GatewayHeaderAuthenticationFilter
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) {
+    http
+        .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+        .addFilterBefore(gatewayHeaderAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+}
+```
+
+### ❌ Mistake 2: Backend Validating JWT
+
+```java
+// ❌ WRONG - Backend should not validate JWT
+@GetMapping("/me")
+public User getMe(@RequestHeader("Authorization") String token) {
+    Claims claims = parseJwt(token); // Gateway already did this!
+}
+
+// ✅ CORRECT - Backend trusts gateway headers
+@GetMapping("/me")
+public User getMe(@RequestHeader("X-User-Id") String userId) {
+    // Use userId from trusted header
+}
+```
+
+### ❌ Mistake 3: Missing Authorization Checks
+
+```java
+// ❌ WRONG - No authorization check
+public Organization getOrganization(Long orgId) {
+    return orgRepository.findById(orgId).orElseThrow();
+    // Missing: authorizationService.hasAccessToOrganization(userId, orgId)
+}
+
+// ✅ CORRECT - Always check authorization
+public Organization getOrganization(String clerkUserId, Long orgId) {
+    if (!authorizationService.hasAccessToOrganization(clerkUserId, orgId)) {
+        throw new AccessDeniedException("Access denied");
+    }
+    return orgRepository.findById(orgId).orElseThrow();
+}
+```
+
+### ❌ Mistake 4: Hardcoded Configuration
+
+```java
+// ❌ WRONG - Hardcoded values
+String jwksUrl = "https://api.clerk.dev/v1/jwks";
+
+// ✅ CORRECT - Environment variables
+@Value("${clerk.jwks.url}")
+private String jwksUrl;
+```
+
+## 📊 Multi-Tenant Authorization Pattern
+
+### Membership-Based Authorization
+
+```java
+// ✅ CORRECT - Check membership for authorization
+@Service
+public class AuthorizationService {
+    public boolean hasAccessToOrganization(String clerkUserId, Long orgId) {
+        // 1. Find user by Clerk user ID
+        User user = userRepository.findByClerkUserId(clerkUserId)
+            .orElseThrow(() -> new UserNotFoundException());
+        
+        // 2. Check membership exists
+        return membershipRepository
+            .findByUserIdAndOrganizationId(user.getId(), orgId)
+            .isPresent();
+    }
+    
+    public boolean hasRole(String clerkUserId, Long orgId, String roleName) {
+        // Check specific role in membership
+        return membershipRepository
+            .findByUserIdAndOrganizationIdAndRoleName(
+                userId, orgId, roleName
+            )
+            .isPresent();
+    }
+}
+```
+
+**Requirements:**
+- Always check membership table for authorization
+- Use database queries for permission checks
+- Cache membership data if needed for performance
+- Index membership table on (user_id, organization_id)
+
+## 🔍 Debugging Patterns
+
+### Gateway Logs
+
+```bash
+# Check JWT validation
+docker logs api-gateway --tail 50 | grep -i "jwt\|validated\|user"
+
+# Look for:
+# - "JWT validated successfully"
+# - "X-User-Id header added"
+# - JWT validation errors
+```
+
+### Backend Logs
+
+```bash
+# Check authentication filter
+docker logs backend-service --tail 50 | grep -i "authenticated\|filter\|user"
+
+# Look for:
+# - "Authentication filter executed"
+# - "SecurityContext set"
+# - Authorization errors
+```
+
+### Database Verification
+
+```sql
+-- Check user exists
+SELECT * FROM users WHERE clerk_user_id = 'user_xxx';
+
+-- Check membership exists
+SELECT * FROM memberships m
+JOIN users u ON m.user_id = u.id
+WHERE u.clerk_user_id = 'user_xxx' AND m.organization_id = 1;
+
+-- Check webhook events
+SELECT * FROM user_events ORDER BY processed_at DESC LIMIT 10;
+```
+
+## 🎯 Design Principles
+
+1. **Separation of Concerns**: Gateway handles auth, backend handles authorization
+2. **Trust Model**: Backend trusts gateway headers completely
+3. **Webhook-Driven**: Identity sync via webhooks, not API calls
+4. **Profile-Based Config**: Environment-specific configuration via profiles
+5. **Service-Layer Authorization**: Check permissions in service layer
+6. **Audit Trail**: Store all webhook events for audit
+7. **Idempotency**: Webhook handlers check for existing records
+
+## 📝 Architecture Checklist
+
+When implementing new features:
+
+- [ ] Gateway validates JWT (if new endpoint requires auth) - see [API Gateway Standards](./api-gateway-standards.mdc)
+- [ ] Backend trusts gateway headers (no JWT parsing) - see [Backend Standards](./enterprise-backend-standards.mdc)
+- [ ] Authorization checks in service layer
+- [ ] Webhook events stored in audit tables
+- [ ] Configuration uses environment variables - see [Docker Standards](./docker-standards.mdc)
+- [ ] Profile-based config for dev/prod differences
+- [ ] Database queries optimized with indexes
+- [ ] Error handling for missing users/memberships
+- [ ] Payment patterns followed (if payment feature) - see [Payment Service Standards](./payment-service-standards.mdc)

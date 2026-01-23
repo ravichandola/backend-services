@@ -291,4 +291,4 @@ After running migrations, you should see these tables in the `public` schema:
 - [Main README](../../readme.md) - Complete project documentation
 - [Flow Documentation](../guides/FLOW_DOCUMENTATION.md) - API and flow details
 - [pgAdmin Setup](./PGADMIN_SETUP.md) - pgAdmin configuration guide
-- [Fixes and Improvements](../architecture/FIXES_AND_IMPROVEMENTS.md) - Detailed log of issues and fixes
+- [Fixes and Improvements](../architecture/fixes/2026-01-23/FIXES_AND_IMPROVEMENTS.md) - Detailed log of issues and fixes

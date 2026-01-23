@@ -1,0 +1,489 @@
+---
+description: Development workflow optimizations and common issues
+alwaysApply: true
+---
+
+# Development Workflow and Common Issues
+
+## 🔄 Code Change Workflow
+
+### After Making Code Changes
+
+**CRITICAL:** Code changes require Docker rebuild, not just restart.
+
+```bash
+# ✅ CORRECT Workflow
+# 1. Make code changes
+# 2. Rebuild container
+docker-compose build backend-service
+
+# 3. Restart service
+docker-compose up -d backend-service
+
+# 4. Check logs
+docker logs backend-service --tail 50
+
+# ❌ WRONG - Only restart doesn't include new code
+docker-compose restart backend-service
+```
+
+**When to Rebuild:**
+- ✅ New classes/files added
+- ✅ Changes to `application.yml` (JAR is baked into image)
+- ✅ Changes to `pom.xml` dependencies
+- ✅ Any Java code changes
+
+**When to Just Restart:**
+- ✅ Only environment variable changes in `.env`
+- ✅ Only docker-compose.yml changes (without code changes)
+
+### After Configuration Changes
+
+```bash
+# ✅ CORRECT - Environment variable changes
+# 1. Update .env file
+# 2. Restart services (no rebuild needed)
+docker-compose up -d
+
+# ✅ CORRECT - application.yml changes
+# 1. Update application.yml
+# 2. Rebuild (JAR includes application.yml)
+docker-compose build backend-service
+docker-compose up -d backend-service
+```
+
+## 🐛 Common Issues and Solutions
+
+### Issue 1: "Port Already Allocated"
+
+**Symptoms:**
+```
+Error: Bind for 0.0.0.0:8080 failed: port is already allocated
+```
+
+**Solution:**
+```bash
+# Step 1: Find what's using the port
+docker ps | grep 8080
+# OR
+lsof -i :8080
+
+# Step 2: Stop conflicting container
+docker stop <container-name>
+
+# Step 3: Start docker-compose
+docker-compose up
+```
+
+**Prevention:**
+- Always check port availability before starting services
+- Document port conflicts in docker-compose.yml comments
+- Use `docker ps` to see running containers
+
+### Issue 2: "JWT Validation Fails"
+
+**Symptoms:**
+- 401 Unauthorized errors
+- "JWT validation failed" in gateway logs
+
+**Debugging:**
+```bash
+# Check gateway logs
+docker logs api-gateway --tail 50 | grep -i jwt
+
+# Verify JWKS URL is correct
+curl ${CLERK_JWKS_URL}
+
+# Check JWT token hasn't expired
+# Decode JWT payload and check 'exp' field
+```
+
+**Common Causes:**
+- ❌ Wrong JWKS URL format (should be `.well-known/jwks.json`)
+- ❌ JWT token expired (dev tokens expire in 60 seconds)
+- ❌ Wrong Clerk instance URL
+- ❌ JWT from different Clerk instance
+
+**Solution:**
+- Verify JWKS URL: `https://<instance>.clerk.accounts.dev/.well-known/jwks.json`
+- Generate new token and test immediately
+- Check JWT issuer matches `CLERK_ISSUER` environment variable
+
+### Issue 3: "403 Forbidden" from Backend
+
+**Symptoms:**
+- Gateway validates JWT successfully
+- Backend returns 403 Forbidden
+
+**Root Cause:**
+- Missing `GatewayHeaderAuthenticationFilter` in SecurityConfig
+- Filter not added to filter chain
+
+**Solution:**
+```java
+// ✅ CORRECT - Add filter to SecurityConfig
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) {
+    http
+        .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+        .addFilterBefore(gatewayHeaderAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+}
+```
+
+**After Fix:**
+- Rebuild container: `docker-compose build backend-service`
+- Restart: `docker-compose up -d backend-service`
+- Check logs: `docker logs backend-service --tail 50`
+
+### Issue 4: "Java 25 Build Failure"
+
+**Symptoms:**
+```
+error: release version 25 not supported
+```
+
+**Root Cause:**
+- Maven Compiler Plugin version doesn't support Java 25
+- Dockerfile uses wrong Java version
+
+**Solution:**
+```xml
+<!-- pom.xml - Update Maven Compiler Plugin -->
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <version>3.14.1</version>  <!-- ✅ Latest version with Java 25 support -->
+    <configuration>
+        <release>25</release>  <!-- ✅ Use <release> not <source>/<target> -->
+    </configuration>
+</plugin>
+```
+
+```dockerfile
+# Dockerfile - Match Java version
+FROM eclipse-temurin:25-jdk AS build  # ✅ Java 25
+FROM eclipse-temurin:25-jre
+```
+
+### Issue 5: "Flyway Migrations Not Running"
+
+**Symptoms:**
+- Tables not created in database
+- No migration logs in application output
+- `flyway_schema_history` table missing
+
+**Solution:**
+```java
+// ✅ CORRECT - Explicit Flyway configuration
+@Configuration
+public class FlywayConfig {
+    @Bean
+    public Flyway flyway(DataSource dataSource) {
+        return Flyway.configure()
+            .dataSource(dataSource)
+            .locations("classpath:db/migration")
+            .baselineOnMigrate(true)
+            .baselineVersion("0")
+            .schemas("public")
+            .load();
+    }
+}
+```
+
+**Manual Migration Trigger:**
+```bash
+# Via API endpoint
+curl -X POST http://localhost:8081/api/migrations/migrate
+
+# Check migration status
+curl -X POST http://localhost:8081/api/migrations/info
+```
+
+### Issue 6: "ObjectMapper Bean Not Found"
+
+**Symptoms:**
+```
+No qualifying bean of type 'com.fasterxml.jackson.databind.ObjectMapper' available
+```
+
+**Solution:**
+```java
+// ✅ CORRECT - Explicit ObjectMapper configuration
+@Configuration
+public class JacksonConfig {
+    @Bean
+    @Primary
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
+}
+```
+
+### Issue 7: "Database Connection Fails"
+
+**Symptoms:**
+- Application fails to start
+- "Connection refused" errors
+- Database connection timeout
+
+**Debugging:**
+```bash
+# Check PostgreSQL container is running
+docker ps | grep postgres
+
+# Check database health
+docker exec -it postgres-db pg_isready -U appuser
+
+# Test connection from backend container
+docker exec -it backend-service ping postgres
+
+# Check connection URL
+docker logs backend-service | grep -i datasource
+```
+
+**Common Causes:**
+- ❌ PostgreSQL container not running
+- ❌ Wrong connection URL (should use service name `postgres`, not `localhost`)
+- ❌ Wrong profile active (dev vs prod)
+- ❌ Wrong credentials
+
+**Solution:**
+- Verify PostgreSQL container: `docker-compose ps`
+- Check connection URL uses service name: `jdbc:postgresql://postgres:5432/appdb`
+- Verify profile: `SPRING_PROFILES_ACTIVE=dev` or `prod`
+- Check credentials match docker-compose.yml
+
+## 🔍 Debugging Commands
+
+### Container Status
+
+```bash
+# List all containers
+docker ps -a
+
+# Check specific service
+docker-compose ps backend-service
+
+# Check container health
+docker inspect backend-service | grep -A 10 Health
+```
+
+### Logs
+
+```bash
+# Follow logs
+docker-compose logs -f backend-service
+
+# Last 50 lines
+docker logs backend-service --tail 50
+
+# Search logs
+docker logs backend-service 2>&1 | grep -i error
+
+# Multiple services
+docker-compose logs -f backend-service api-gateway
+```
+
+### Network Debugging
+
+```bash
+# List networks
+docker network ls
+
+# Inspect network
+docker network inspect app-network
+
+# Test connectivity
+docker exec -it backend-service ping postgres
+docker exec -it backend-service curl http://api-gateway:8080/api/health
+```
+
+### Database Debugging
+
+```bash
+# Connect to database
+docker exec -it postgres-db psql -U appuser -d appdb
+
+# Check tables
+docker exec -it postgres-db psql -U appuser -d appdb -c "\dt"
+
+# Check migrations
+docker exec -it postgres-db psql -U appuser -d appdb -c "SELECT * FROM flyway_schema_history;"
+```
+
+## 📋 Pre-Commit Checklist
+
+Before committing code changes:
+
+- [ ] Code compiles without errors
+- [ ] `docker-compose config` passes (no syntax errors)
+- [ ] Containers rebuild successfully: `docker-compose build`
+- [ ] Services start successfully: `docker-compose up -d`
+- [ ] Health checks pass: `curl http://localhost:8080/api/health`
+- [ ] No port conflicts (check `docker ps`)
+- [ ] Logs show no errors: `docker-compose logs`
+- [ ] Database migrations run (if schema changes)
+- [ ] Environment variables documented (if new ones added)
+
+## 🚀 Quick Reference
+
+### Start Services
+
+```bash
+# Build and start all services
+docker-compose up --build
+
+# Start in background
+docker-compose up -d
+
+# Start specific service
+docker-compose up -d backend-service
+```
+
+### Stop Services
+
+```bash
+# Stop all services
+docker-compose down
+
+# Stop and remove volumes
+docker-compose down -v
+
+# Stop specific service
+docker-compose stop backend-service
+```
+
+### Rebuild After Changes
+
+```bash
+# Rebuild specific service
+docker-compose build backend-service
+docker-compose up -d backend-service
+
+# Rebuild all services
+docker-compose build
+docker-compose up -d
+```
+
+### View Logs
+
+```bash
+# Follow logs
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f backend-service
+
+# Last N lines
+docker logs backend-service --tail 100
+```
+
+### Database Access
+
+```bash
+# Connect via psql
+docker exec -it postgres-db psql -U appuser -d appdb
+
+# Access pgAdmin
+# http://localhost:5050
+# Login: admin@local.com / admin123
+```
+
+## 🔗 Related Standards
+
+- [Docker Standards](./docker-standards.mdc) - Docker configuration and workflow
+- [Backend Standards](./enterprise-backend-standards.mdc) - Code standards and patterns
+- [Architecture Patterns](./architecture-patterns.mdc) - System architecture
+
+## 🔀 Git Workflow
+
+### Branch Naming Conventions
+
+```bash
+# ✅ GOOD - Descriptive branch names
+feature/payment-verification
+bugfix/jwt-validation-error
+hotfix/database-connection-issue
+refactor/authorization-service
+
+# ❌ BAD - Vague branch names
+fix
+update
+changes
+new-feature
+```
+
+**Requirements:**
+- Use prefixes: `feature/`, `bugfix/`, `hotfix/`, `refactor/`
+- Use descriptive names with hyphens
+- Keep branch names concise but clear
+
+### Commit Message Format
+
+```bash
+# ✅ GOOD - Conventional commits
+feat: add payment order creation endpoint
+fix: resolve JWT validation error in gateway
+refactor: extract authorization logic to service
+docs: update API documentation
+test: add integration tests for webhook handler
+
+# ❌ BAD - Vague commit messages
+fix bug
+update code
+changes
+```
+
+**Requirements:**
+- Use conventional commit format: `<type>: <description>`
+- Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+- Keep description concise (50 chars or less for summary)
+- Add detailed body if needed (separated by blank line)
+
+### Pull Request Process
+
+**Before Creating PR:**
+- [ ] Code compiles without errors
+- [ ] All tests pass
+- [ ] Code follows standards (see [Backend Standards](./enterprise-backend-standards.mdc))
+- [ ] Docker containers rebuild successfully
+- [ ] No hardcoded secrets or URLs
+- [ ] Environment variables documented (if new ones added)
+
+**PR Description Template:**
+```markdown
+## Description
+Brief description of changes
+
+## Type of Change
+- [ ] Feature
+- [ ] Bug fix
+- [ ] Refactor
+- [ ] Documentation
+
+## Testing
+- [ ] Unit tests added/updated
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+
+## Checklist
+- [ ] Code follows project standards
+- [ ] Self-review completed
+- [ ] Comments added for complex logic
+- [ ] Documentation updated (if needed)
+```
+
+## 🎯 Best Practices
+
+1. **Always rebuild after code changes** - Don't just restart
+2. **Check port availability** before starting services
+3. **Validate docker-compose.yml** with `docker-compose config`
+4. **Check logs immediately** after starting services
+5. **Test health endpoints** to verify services are up
+6. **Document environment variables** when adding new ones
+7. **Use service names** for inter-container communication (not localhost)
+8. **Match Java versions** between Dockerfile and pom.xml
+9. **Verify JWKS URLs** before configuration
+10. **Test immediately** after generating JWT tokens (they expire quickly)
+11. **Follow Git workflow** - use descriptive branch names and commit messages
+12. **Create meaningful PRs** - include description, testing notes, and checklist

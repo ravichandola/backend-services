@@ -1,0 +1,450 @@
+---
+description: Payment service standards for Razorpay integration
+alwaysApply: true
+---
+
+# Payment Service Standards
+
+## 💳 Payment Service Overview
+
+The payment service handles Razorpay integration for payment order creation and verification. It's a public service (no authentication required) that processes payment requests.
+
+**Key Responsibilities:**
+- Create Razorpay payment orders
+- Verify payment signatures
+- Persist payment data to database
+- Handle payment errors gracefully
+
+## 🔧 Razorpay Configuration
+
+### RazorpayConfig Pattern
+
+```java
+// ✅ GOOD - Razorpay client configuration
+@Configuration
+@ConditionalOnProperty(name = "razorpay.key")
+public class RazorpayConfig {
+    
+    @Value("${razorpay.key}")
+    private String razorpayKey;
+    
+    @Value("${razorpay.secret}")
+    private String razorpaySecret;
+    
+    @Bean
+    @ConditionalOnProperty(name = "razorpay.key")
+    public RazorpayClient razorpayClient() {
+        return new RazorpayClient(razorpayKey, razorpaySecret);
+    }
+}
+```
+
+**Requirements:**
+- Use `@ConditionalOnProperty` to make Razorpay optional
+- Load credentials from environment variables
+- Never hardcode Razorpay keys/secrets
+- Handle missing configuration gracefully
+
+### Environment Variables
+
+```yaml
+# ✅ GOOD - Environment variable configuration
+razorpay:
+  key: ${RAZORPAY_KEY:-}
+  secret: ${RAZORPAY_SECRET:-}
+```
+
+**Requirements:**
+- Use environment variables: `RAZORPAY_KEY`, `RAZORPAY_SECRET`
+- Provide empty defaults (service won't work without them)
+- Document required variables in README
+- Never commit secrets to repository
+
+## 📦 Payment Order Creation
+
+### Create Order Pattern
+
+```java
+// ✅ GOOD - Payment order creation
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class PaymentServiceImpl implements PaymentService {
+    
+    private final RazorpayClient razorpayClient;
+    private final PaymentOrderRepository orderRepository;
+    
+    @Override
+    public CreateOrderResponse createOrder(Long amount) {
+        // 1. Validate input
+        if (amount == null || amount <= 0) {
+            throw new PaymentException("Invalid amount. Amount must be greater than 0");
+        }
+        
+        // 2. Check Razorpay is configured
+        if (razorpayClient == null) {
+            throw new PaymentException("Razorpay is not configured");
+        }
+        
+        try {
+            // 3. Create Razorpay order
+            JSONObject options = new JSONObject();
+            options.put("amount", amount * 100); // Convert to paise
+            options.put("currency", "INR");
+            options.put("receipt", "rcpt_" + System.currentTimeMillis());
+            
+            Order razorpayOrder = razorpayClient.orders.create(options);
+            
+            // 4. Persist to database
+            PaymentOrder paymentOrder = PaymentOrder.builder()
+                .razorpayOrderId((String) razorpayOrder.get("id"))
+                .amount(amount)
+                .currency("INR")
+                .status("CREATED")
+                .build();
+            
+            orderRepository.save(paymentOrder);
+            
+            // 5. Return response
+            return CreateOrderResponse.builder()
+                .orderId((String) razorpayOrder.get("id"))
+                .amount(amount)
+                .currency("INR")
+                .status("CREATED")
+                .receipt((String) razorpayOrder.get("receipt"))
+                .build();
+                
+        } catch (RazorpayException e) {
+            log.error("Razorpay API error: {}", e.getMessage(), e);
+            throw new PaymentException("Failed to create payment order: " + e.getMessage());
+        }
+    }
+}
+```
+
+**Requirements:**
+- Validate amount (must be > 0)
+- Convert amount to paise (multiply by 100)
+- Generate unique receipt ID
+- Persist order to database
+- Handle RazorpayException and convert to domain exception
+- Log errors with context
+- Return consistent response format
+
+### Amount Conversion
+
+```java
+// ✅ GOOD - Amount conversion (rupees to paise)
+options.put("amount", amount * 100); // Razorpay expects paise
+
+// ✅ GOOD - Amount conversion (paise to rupees) in response
+long amountInRupees = ((Number) razorpayOrder.get("amount")).longValue() / 100;
+```
+
+**Requirements:**
+- Razorpay API expects amount in paise (smallest currency unit)
+- Convert rupees to paise when creating order (multiply by 100)
+- Convert paise to rupees in response (divide by 100)
+- Document currency unit in code comments
+
+## ✅ Payment Verification
+
+### Signature Verification Pattern
+
+```java
+// ✅ GOOD - Payment signature verification
+@Override
+public String verifyPayment(String razorpayOrderId, String razorpayPaymentId, String razorpaySignature) {
+    // 1. Validate inputs
+    if (razorpayOrderId == null || razorpayPaymentId == null || razorpaySignature == null) {
+        throw new PaymentException("Missing required payment parameters");
+    }
+    
+    try {
+        // 2. Construct signature payload
+        String payload = razorpayOrderId + "|" + razorpayPaymentId;
+        
+        // 3. Calculate expected signature
+        Mac mac = Mac.getInstance("HmacSHA256");
+        SecretKeySpec secretKeySpec = new SecretKeySpec(razorpaySecret.getBytes(), "HmacSHA256");
+        mac.init(secretKeySpec);
+        byte[] hash = mac.doFinal(payload.getBytes());
+        String expectedSignature = bytesToHex(hash);
+        
+        // 4. Verify signature (constant-time comparison)
+        if (!MessageDigest.isEqual(
+            expectedSignature.getBytes(),
+            razorpaySignature.getBytes()
+        )) {
+            throw new PaymentException("Invalid payment signature");
+        }
+        
+        // 5. Update order status
+        PaymentOrder order = orderRepository.findByRazorpayOrderId(razorpayOrderId)
+            .orElseThrow(() -> new PaymentException("Order not found"));
+        
+        order.setStatus("PAID");
+        orderRepository.save(order);
+        
+        // 6. Save transaction
+        PaymentTransaction transaction = PaymentTransaction.builder()
+            .razorpayPaymentId(razorpayPaymentId)
+            .razorpayOrderId(razorpayOrderId)
+            .razorpaySignature(razorpaySignature)
+            .status("VERIFIED")
+            .build();
+        
+        transactionRepository.save(transaction);
+        
+        return "Payment verified successfully";
+        
+    } catch (Exception e) {
+        log.error("Payment verification failed: {}", e.getMessage(), e);
+        throw new PaymentException("Payment verification failed: " + e.getMessage());
+    }
+}
+```
+
+**Requirements:**
+- Validate all required parameters
+- Construct signature payload: `orderId|paymentId`
+- Use HMAC SHA256 for signature calculation
+- Use constant-time comparison (`MessageDigest.isEqual`)
+- Update order status to "PAID" after verification
+- Save transaction record for audit
+- Handle exceptions and convert to domain exceptions
+
+### Signature Payload Format
+
+```java
+// ✅ CORRECT - Razorpay signature payload format
+String payload = razorpayOrderId + "|" + razorpayPaymentId;
+// Example: "order_ABC123|pay_XYZ789"
+```
+
+**Requirements:**
+- Payload format: `orderId|paymentId` (pipe separator)
+- Use exact order ID and payment ID from Razorpay
+- Don't modify payload format
+- Document signature algorithm in code
+
+## 🗄️ Database Patterns
+
+### Payment Order Entity
+
+```java
+// ✅ GOOD - Payment order entity
+@Entity
+@Table(name = "payment_order", indexes = {
+    @Index(name = "idx_razorpay_order_id", columnList = "razorpay_order_id")
+})
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class PaymentOrder {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(name = "razorpay_order_id", unique = true, nullable = false)
+    private String razorpayOrderId;
+    
+    @Column(name = "amount", nullable = false)
+    private Long amount; // In rupees
+    
+    @Column(name = "currency", nullable = false)
+    private String currency;
+    
+    @Column(name = "status", nullable = false)
+    private String status; // CREATED, PAID, FAILED
+    
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+}
+```
+
+**Requirements:**
+- Store amount in rupees (not paise)
+- Index on `razorpay_order_id` for lookups
+- Unique constraint on `razorpay_order_id`
+- Track status: CREATED → PAID/FAILED
+- Use audit timestamps
+
+### Payment Transaction Entity
+
+```java
+// ✅ GOOD - Payment transaction entity
+@Entity
+@Table(name = "payment_transaction", indexes = {
+    @Index(name = "idx_razorpay_payment_id", columnList = "razorpay_payment_id"),
+    @Index(name = "idx_razorpay_order_id", columnList = "razorpay_order_id")
+})
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class PaymentTransaction {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(name = "razorpay_payment_id", unique = true, nullable = false)
+    private String razorpayPaymentId;
+    
+    @Column(name = "razorpay_order_id", nullable = false)
+    private String razorpayOrderId;
+    
+    @Column(name = "razorpay_signature", nullable = false)
+    private String razorpaySignature;
+    
+    @Column(name = "status", nullable = false)
+    private String status; // VERIFIED, FAILED
+    
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+}
+```
+
+**Requirements:**
+- Store payment ID, order ID, and signature
+- Index on payment ID and order ID
+- Unique constraint on payment ID
+- Store signature for audit
+- Track verification status
+
+## ⚠️ Error Handling
+
+### PaymentException Pattern
+
+```java
+// ✅ GOOD - Custom payment exception
+public class PaymentException extends RuntimeException {
+    public PaymentException(String message) {
+        super(message);
+    }
+    
+    public PaymentException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+```
+
+**Requirements:**
+- Create domain-specific exception
+- Include meaningful error messages
+- Preserve cause for debugging
+- Use in service layer, handle in controller
+
+### Error Response Format
+
+```java
+// ✅ GOOD - Consistent error response
+@ExceptionHandler(PaymentException.class)
+public ResponseEntity<ErrorResponse> handlePaymentException(PaymentException e) {
+    log.error("Payment error: {}", e.getMessage());
+    ErrorResponse error = ErrorResponse.builder()
+        .error("PAYMENT_ERROR")
+        .message(e.getMessage())
+        .timestamp(LocalDateTime.now())
+        .build();
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+}
+```
+
+**Requirements:**
+- Use `@ExceptionHandler` for global handling
+- Return consistent error format
+- Log errors with context
+- Don't expose internal Razorpay errors to clients
+- Use appropriate HTTP status codes
+
+## 🧪 Testing Patterns
+
+### Unit Testing Payment Service
+
+```java
+// ✅ GOOD - Test payment service with mocks
+@ExtendWith(MockitoExtension.class)
+class PaymentServiceTest {
+    @Mock
+    private RazorpayClient razorpayClient;
+    
+    @Mock
+    private PaymentOrderRepository orderRepository;
+    
+    @InjectMocks
+    private PaymentServiceImpl paymentService;
+    
+    @Test
+    void shouldCreateOrderSuccessfully() {
+        // Test order creation
+    }
+    
+    @Test
+    void shouldThrowExceptionForInvalidAmount() {
+        assertThrows(PaymentException.class, 
+            () -> paymentService.createOrder(-100L));
+    }
+    
+    @Test
+    void shouldVerifyPaymentSignature() {
+        // Test signature verification
+    }
+}
+```
+
+**Requirements:**
+- Mock RazorpayClient
+- Mock repositories
+- Test success scenarios
+- Test validation failures
+- Test signature verification
+- Test error handling
+
+### Integration Testing
+
+```java
+// ✅ GOOD - Test with real Razorpay (test mode)
+@SpringBootTest
+class PaymentServiceIntegrationTest {
+    @Test
+    @Disabled("Requires Razorpay test credentials")
+    void shouldCreateOrderWithRazorpay() {
+        // Test with real Razorpay test API
+    }
+}
+```
+
+**Requirements:**
+- Use Razorpay test mode for integration tests
+- Mark tests that require credentials as `@Disabled` by default
+- Test with real Razorpay API in CI/CD with test credentials
+- Clean up test data after tests
+
+## 📋 Payment Service Checklist
+
+When implementing payment features:
+
+- [ ] Razorpay configuration uses environment variables
+- [ ] Amount conversion handled correctly (rupees ↔ paise)
+- [ ] Payment order persisted to database
+- [ ] Payment signature verified with constant-time comparison
+- [ ] Payment transaction saved for audit
+- [ ] Error handling for Razorpay exceptions
+- [ ] Custom PaymentException for domain errors
+- [ ] Logging for payment operations
+- [ ] Tests for order creation
+- [ ] Tests for signature verification
+- [ ] Database indexes on payment IDs
+- [ ] Status tracking (CREATED → PAID/FAILED)
+
+## 🔗 Related Standards
+
+- [Backend Standards](./enterprise-backend-standards.mdc) - General service patterns
+- [Architecture Patterns](./architecture-patterns.mdc) - System architecture
+- [Docker Standards](./docker-standards.mdc) - Environment variable configuration

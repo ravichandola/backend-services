@@ -1,5 +1,226 @@
 # Enterprise Multi-Tenant SaaS Backend Architecture
 
+> **Goal of this doc:** give a **fast, clear mental model** of the system.  
+> For full details (all tables, flows, configs), see `03_ARCHITECTURE_DETAILED.md`.
+
+## 1. Big Picture
+
+This project is an **enterprise multi-tenant SaaS backend** with integrated payments:
+
+- **API Gateway (`api-gateway/`)**
+  - Validates Clerk JWTs
+  - Adds `X-User-Id` and `X-Org-Id` headers
+  - Routes traffic to backend and payment services
+
+- **Backend Service (`backend-service/`)**
+  - Handles webhooks from Clerk
+  - Provides protected APIs (e.g. `/api/me`, org admin APIs)
+  - Enforces **authorization** using DB (`users`, `organizations`, `roles`, `memberships`)
+
+- **Payment Service (`payment-service/`)**
+  - Integrates with Razorpay
+  - Creates and verifies payment orders
+  - Persists orders and transactions
+
+- **PostgreSQL**
+  - Stores users, organizations, roles, memberships
+  - Stores webhook events (audit)
+  - Stores payment orders and transactions
+
+- **Clerk**
+  - Handles all login/signup UI and flows
+  - Issues JWTs for authenticated users
+  - Sends webhooks on user/org changes
+
+## 2. Core Principles
+
+### 2.1 Authentication – Gateway Only
+
+- Backend **never** parses or validates JWTs
+- **Only the API Gateway**:
+  - Talks to Clerk JWKS
+  - Validates JWT signature, issuer, expiry
+  - Extracts `sub` (user ID) and `org_id`
+  - Adds trusted headers:
+    - `X-User-Id` (Clerk user ID)
+    - `X-Org-Id` (current org, if any)
+
+Backend services **trust these headers completely**.
+
+### 2.2 Authorization – Service Layer + Database
+
+- Multi-tenant model:
+  - `users` – one row per Clerk user
+  - `organizations` – one row per tenant
+  - `roles` – e.g. `ADMIN`, `USER`
+  - `memberships` – user ↔ organization ↔ role
+- Authorization rules live in `AuthorizationService`:
+  - “Is this user a member of this org?”
+  - “Is this user an ADMIN in this org?”
+
+### 2.3 Webhook-Driven Identity Sync
+
+- Backend does **not** depend on frontend calling “create user/org” APIs
+- Clerk sends webhooks for:
+  - `user.created`, `user.updated`
+  - `organization.created`
+  - `organizationMembership.created`, `organizationMembership.deleted`
+- Webhook handlers:
+  - Verify signatures using `CLERK_WEBHOOK_SECRET`
+  - Upsert users, orgs, memberships
+  - Store full payloads in `user_events` / `organization_events`
+
+## 3. High-Level Architecture Diagram
+
+```text
+Client (Browser / Postman)
+        │
+        │ 1. Login with Clerk → Get JWT
+        │
+        ▼
+   Clerk (Auth)
+        │           ▲
+        │ 2. JWT    │ 3. Webhooks (user/org events)
+        ▼           │
+ API Gateway (8080) │
+  - Validates JWT   │
+  - Adds X-User-Id  │
+  - Adds X-Org-Id   │
+        │
+        ▼
+  Backend Service (8081)          Payment Service (8082)
+  - Webhooks                      - Create Razorpay order
+  - Business logic                - Verify payment
+  - Authorization                 - Persist orders/transactions
+        │
+        ▼
+      PostgreSQL
+  - users / organizations / memberships / roles
+  - user_events / organization_events
+  - payment_order / payment_transaction
+```
+
+## 4. Request & Webhook Flows (Summary)
+
+### 4.1 Authenticated Request: `GET /api/me`
+
+1. User logs in with Clerk → gets a JWT.
+2. Client calls Gateway:
+
+   ```http
+   GET /api/me
+   Authorization: Bearer <jwt>
+   ```
+
+3. Gateway:
+   - Validates JWT using Clerk JWKS
+   - Extracts user ID and org ID
+   - Adds `X-User-Id`, `X-Org-Id`
+   - Forwards to Backend
+
+4. Backend:
+   - Uses `X-User-Id` to look up the user
+   - Uses `memberships` + `roles` for org/role checks (if needed)
+   - Returns user info
+
+### 4.2 Webhook: `user.created`
+
+1. Clerk sends webhook to `/api/webhooks/clerk`.
+2. Gateway forwards (no auth required for this path).
+3. Backend:
+   - Verifies signature using `CLERK_WEBHOOK_SECRET`
+   - Parses `user.created` payload
+   - Upserts row in `users`
+   - Stores full payload in `user_events`
+
+> **Full, step-by-step sequence diagrams live in** `03_ARCHITECTURE_DETAILED.md`.
+
+## 5. Data Model – Mental Model
+
+You don’t need every column; just know the **roles** of each table:
+
+- **Identity & Tenancy**
+  - `users` – who
+  - `organizations` – which tenant
+  - `roles` – what level (ADMIN, USER, etc.)
+  - `memberships` – who is what in which tenant
+
+- **Audit**
+  - `user_events`, `organization_events` – every Clerk event, stored for debugging and audit
+
+- **Payments**
+  - `payment_order` – one row per Razorpay order
+  - `payment_transaction` – one row per verified payment
+
+Think of it as:
+
+> **“Users in organizations with roles, plus audit logs and payments.”**
+
+For full schemas and edge cases, see:
+
+- `03_ARCHITECTURE_DETAILED.md`
+- `05-reference/README_ENTERPRISE.md`
+
+## 6. Services & Their Responsibilities
+
+- **API Gateway (`api-gateway/`)**
+  - Validates JWTs with Clerk JWKS
+  - Adds `X-User-Id`, `X-Org-Id`
+  - Routes to backend/payment services
+
+- **Backend Service (`backend-service/`)**
+  - Exposes `/api/me`, `/api/org/{orgId}/admin-data`, etc.
+  - Handles `/api/webhooks/clerk` from Clerk
+  - Uses `AuthorizationService` + DB for all authorization
+
+- **Payment Service (`payment-service/`)**
+  - `POST /api/payments/create-order`
+  - `POST /api/payments/verify`
+  - Persists to `payment_order` and `payment_transaction`
+
+- **Database**
+  - Shared Postgres instance (via Flyway migrations)
+  - Multi-tenant auth model + payments + audit
+
+## 7. Security Model (Summary)
+
+- **Authentication**
+  - Only Gateway validates JWTs.
+  - Backend trusts headers from Gateway.
+
+- **Authorization**
+  - Service-layer checks using `memberships` and `roles`.
+  - No “role” logic in controllers – all in services.
+
+- **Webhooks**
+  - HMAC signature verification (`CLERK_WEBHOOK_SECRET`).
+  - Constant-time comparison for signatures.
+
+- **Network**
+  - Only Gateway is exposed publicly.
+  - Backend and DB are on private Docker network.
+
+## 8. How This Fits With the Rest of the Docs
+
+Use this doc as the **map**, then jump into details as needed:
+
+- **Run it locally:**  
+  `02-setup/01_QUICK_START.md` → `02-setup/02_SETUP_GUIDE.md`
+
+- **Test real flows:**  
+  `03-guides/01_API_TESTING_DETAILED.md` → `03-guides/04_FLOW_DETAILED.md`
+
+- **Understand what was built:**  
+  `04-architecture/02_IMPLEMENTATION_SUMMARY.md`
+
+- **See all mistakes & fixes:**  
+  `04-architecture/fixes/01_MISTAKES_PART1.md` → `04-architecture/fixes/02_MISTAKES_AND_DESIGN.md`
+
+- **Need every detail?**  
+  `04-architecture/03_ARCHITECTURE_DETAILED.md`
+
+# Enterprise Multi-Tenant SaaS Backend Architecture
+
 ## Overview
 
 This is a complete enterprise-grade multi-tenant SaaS backend system built with:
@@ -629,7 +850,7 @@ This document provides a high-level architecture overview. For detailed guides, 
 ### 🏗️ Architecture & Design
 
 - **[Implementation Summary](./documentation/architecture/IMPLEMENTATION_SUMMARY.md)** - What was built and implementation details
-- **[Mistakes & Design Decisions](./documentation/architecture/MISTAKES_AND_DESIGN.md)** - Design decisions and lessons learned
+- **[Mistakes & Design Decisions](./documentation/architecture/fixes/MISTAKES_AND_DESIGN.md)** - Design decisions and lessons learned
 
 ### 📖 Setup & Configuration
 

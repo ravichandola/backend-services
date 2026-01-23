@@ -1,0 +1,52 @@
+---
+description: Policy for creating markdown and documentation files
+alwaysApply: true
+---
+
+# File Creation Policy
+
+## Markdown Files (.md, .mdx, .mdc)
+
+**NEVER create markdown files (README.md, documentation files, etc.) unless the user explicitly requests it.**
+
+### Rules:
+- ❌ **DO NOT** proactively create documentation files
+- ❌ **DO NOT** create README.md files unless asked
+- ❌ **DO NOT** create .md files for documentation unless explicitly requested
+- ✅ **ONLY** create .md files when the user explicitly says:
+  - "create a README"
+  - "write documentation"
+  - "create a .md file"
+  - "document this"
+  - "add documentation"
+  - "create documentation"
+  - "write a guide"
+  - "add a README"
+  - "document the API"
+  - "create a markdown file for X"
+  - "generate documentation"
+  - "write docs"
+  - or similar explicit requests that clearly indicate documentation intent
+
+### Examples:
+
+**❌ BAD - Don't do this:**
+- After implementing a feature, automatically creating a README.md
+- Creating documentation files "to help explain the code"
+- Proactively creating .md files for new features
+
+**✅ GOOD - Only do this when asked:**
+- User says: "Create a README.md for this project"
+- User says: "Document this API in a markdown file"
+- User explicitly requests markdown file creation
+
+### Exceptions (Allowed):
+- `.cursor/rules/*.mdc` files (rule files themselves)
+- Configuration files required by project structure (e.g., `CHANGELOG.md` if part of workflow)
+- Files explicitly requested by user (even if not explicitly saying "create .md file")
+- When user asks "should I create a README?" - wait for explicit confirmation
+
+### Borderline Cases (Ask First):
+- User says: "This code needs documentation" → Ask: "Would you like me to create a documentation file?"
+- User says: "Explain how this works" → Don't create .md file, just explain in response
+- User says: "Document this feature" → Ask: "Should I create a markdown documentation file?"
