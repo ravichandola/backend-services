@@ -496,7 +496,45 @@ public class WebhookService {
     private void storeUserEvent(String clerkUserId, String eventType, JsonNode eventData) {
         try {
             String eventDataJson = objectMapper.writeValueAsString(eventData);
-            String clerkEventId = eventData.has("id") ? eventData.get("id").asText() : null;
+            
+            // Extract clerkUserId from event data if not provided
+            if (clerkUserId == null || clerkUserId.isEmpty()) {
+                JsonNode data = eventData.has("data") ? eventData.get("data") : null;
+                if (data != null) {
+                    if (data.has("id")) {
+                        clerkUserId = data.get("id").asText();
+                    } else if (data.has("user_id")) {
+                        clerkUserId = data.get("user_id").asText();
+                    }
+                }
+                if (clerkUserId != null) {
+                    log.debug("Extracted clerkUserId from event data: {}", clerkUserId);
+                }
+            }
+            
+            // Extract event ID from multiple possible locations
+            String clerkEventId = null;
+            // 1. Check svix_id (added from header - most reliable)
+            if (eventData.has("svix_id")) {
+                clerkEventId = eventData.get("svix_id").asText();
+                log.debug("Using svix_id as event ID: {}", clerkEventId);
+            }
+            // 2. Check root level id (event ID)
+            else if (eventData.has("id")) {
+                clerkEventId = eventData.get("id").asText();
+            }
+            // 3. Check for event_id field
+            else if (eventData.has("event_id")) {
+                clerkEventId = eventData.get("event_id").asText();
+            }
+            // 4. Check instance_id (fallback, though not ideal)
+            else if (eventData.has("instance_id")) {
+                // instance_id is not unique per event, but better than null
+                String instanceId = eventData.get("instance_id").asText();
+                String timestamp = eventData.has("timestamp") ? eventData.get("timestamp").asText() : String.valueOf(System.currentTimeMillis());
+                clerkEventId = instanceId + "_" + timestamp;
+                log.debug("Using instance_id + timestamp as event ID: {}", clerkEventId);
+            }
             
             // Check for duplicate events
             if (clerkEventId != null && userEventRepository.existsByClerkEventId(clerkEventId)) {
@@ -512,6 +550,7 @@ public class WebhookService {
                 .build();
             
             userEventRepository.save(event);
+            log.debug("User event stored - type: {}, userId: {}, eventId: {}", eventType, clerkUserId, clerkEventId);
         } catch (Exception e) {
             log.error("Error storing user event", e);
             // Don't throw - event storage failure shouldn't break webhook processing
@@ -521,7 +560,101 @@ public class WebhookService {
     private void storeOrganizationEvent(String clerkOrgId, String clerkUserId, String eventType, JsonNode eventData) {
         try {
             String eventDataJson = objectMapper.writeValueAsString(eventData);
-            String clerkEventId = eventData.has("id") ? eventData.get("id").asText() : null;
+            
+            // Extract clerkOrgId from event data if not provided
+            if (clerkOrgId == null || clerkOrgId.isEmpty()) {
+                JsonNode data = eventData.has("data") ? eventData.get("data") : null;
+                if (data != null) {
+                    if (data.has("id")) {
+                        clerkOrgId = data.get("id").asText();
+                    } else if (data.has("organization_id")) {
+                        clerkOrgId = data.get("organization_id").asText();
+                    } else if (data.has("organization") && data.get("organization").has("id")) {
+                        clerkOrgId = data.get("organization").get("id").asText();
+                    }
+                }
+                if (clerkOrgId != null) {
+                    log.debug("Extracted clerkOrgId from event data: {}", clerkOrgId);
+                }
+            }
+            
+            // Extract clerkUserId from event data if not provided
+            if (clerkUserId == null || clerkUserId.isEmpty()) {
+                JsonNode data = eventData.has("data") ? eventData.get("data") : null;
+                
+                // Try multiple locations for user_id
+                if (data != null) {
+                    // 1. Check public_user_data.user_id (common in membership events)
+                    if (data.has("public_user_data") && data.get("public_user_data").has("user_id")) {
+                        clerkUserId = data.get("public_user_data").get("user_id").asText();
+                    }
+                    // 2. Check user_id directly
+                    else if (data.has("user_id")) {
+                        clerkUserId = data.get("user_id").asText();
+                    }
+                    // 3. Check user.id
+                    else if (data.has("user") && data.get("user").has("id")) {
+                        clerkUserId = data.get("user").get("id").asText();
+                    }
+                    // 4. Check created_by or updated_by fields
+                    else if (data.has("created_by")) {
+                        clerkUserId = data.get("created_by").asText();
+                    }
+                    else if (data.has("updated_by")) {
+                        clerkUserId = data.get("updated_by").asText();
+                    }
+                    // 5. Check public_metadata for user_id
+                    else if (data.has("public_metadata") && data.get("public_metadata").has("user_id")) {
+                        clerkUserId = data.get("public_metadata").get("user_id").asText();
+                    }
+                    // 6. Check private_metadata for user_id
+                    else if (data.has("private_metadata") && data.get("private_metadata").has("user_id")) {
+                        clerkUserId = data.get("private_metadata").get("user_id").asText();
+                    }
+                }
+                
+                // Also check root level (outside data object)
+                if ((clerkUserId == null || clerkUserId.isEmpty()) && eventData.has("user_id")) {
+                    clerkUserId = eventData.get("user_id").asText();
+                }
+                else if ((clerkUserId == null || clerkUserId.isEmpty()) && eventData.has("created_by")) {
+                    clerkUserId = eventData.get("created_by").asText();
+                }
+                else if ((clerkUserId == null || clerkUserId.isEmpty()) && eventData.has("updated_by")) {
+                    clerkUserId = eventData.get("updated_by").asText();
+                }
+                
+                if (clerkUserId != null && !clerkUserId.isEmpty()) {
+                    log.debug("Extracted clerkUserId from event data: {}", clerkUserId);
+                } else {
+                    log.debug("No clerkUserId found in event data for event type: {}", eventType);
+                }
+            }
+            
+            // Extract event ID from multiple possible locations (for deduplication)
+            String clerkEventId = null;
+            // 1. Check svix_id (added from header - most reliable)
+            if (eventData.has("svix_id")) {
+                clerkEventId = eventData.get("svix_id").asText();
+                log.debug("Using svix_id as event ID: {}", clerkEventId);
+            }
+            // 2. Check root level id (event ID)
+            else if (eventData.has("id")) {
+                clerkEventId = eventData.get("id").asText();
+            }
+            // 3. Check for event_id field
+            else if (eventData.has("event_id")) {
+                clerkEventId = eventData.get("event_id").asText();
+            }
+            // 4. Check instance_id + timestamp (fallback, though not ideal)
+            else if (eventData.has("instance_id")) {
+                // instance_id is not unique per event, but better than null
+                String instanceId = eventData.get("instance_id").asText();
+                String timestamp = eventData.has("timestamp") ? eventData.get("timestamp").asText() : String.valueOf(System.currentTimeMillis());
+                clerkEventId = instanceId + "_" + timestamp;
+                log.debug("Using instance_id + timestamp as event ID: {}", clerkEventId);
+            }
+            // Note: We don't use data.id as that's usually the resource ID (org/user ID), not the event ID
             
             // Check for duplicate events
             if (clerkEventId != null && organizationEventRepository.existsByClerkEventId(clerkEventId)) {
@@ -538,6 +671,7 @@ public class WebhookService {
                 .build();
             
             organizationEventRepository.save(event);
+            log.debug("Organization event stored - type: {}, orgId: {}, userId: {}", eventType, clerkOrgId, clerkUserId);
         } catch (Exception e) {
             log.error("Error storing organization event", e);
             // Don't throw - event storage failure shouldn't break webhook processing

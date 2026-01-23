@@ -99,6 +99,12 @@ public class WebhookController {
                     .body("Missing 'type' field in webhook payload");
             }
             
+            // Add svix-id to event payload if not already present (for event ID tracking)
+            if (svixId != null && !event.has("id") && !event.has("event_id")) {
+                ((com.fasterxml.jackson.databind.node.ObjectNode) event).put("svix_id", svixId);
+                log.debug("Added svix-id to event payload: {}", svixId);
+            }
+            
             String eventType = event.get("type").asText();
             JsonNode eventData = event.has("data") ? event.get("data") : null;
             
