@@ -177,7 +177,27 @@ docker-compose up --build
 ```
 payment/
 ├── api-gateway/          # Spring Cloud Gateway (JWT validation)
-├── backend-service/      # Spring Boot Backend (webhooks, APIs, authZ)
+├── backend-service/      # Spring Boot Backend (SaaS model with domain-based structure)
+│   └── src/main/java/com/demo/backend/
+│       ├── config/       # Shared configuration
+│       │   ├── payment/  # Payment service configs (RazorpayConfig)
+│       │   └── user/     # User service configs (future)
+│       ├── controller/   # REST controllers
+│       │   ├── payment/  # PaymentController
+│       │   └── user/     # WebhookController, ApiController
+│       ├── dto/          # Data Transfer Objects
+│       │   └── payment/  # Payment DTOs
+│       ├── entity/       # JPA entities
+│       │   ├── payment/  # PaymentOrder, PaymentTransaction
+│       │   └── user/     # User, Organization, Role, Membership, etc.
+│       ├── repository/   # JPA repositories
+│       │   ├── payment/  # Payment repositories
+│       │   └── user/     # User/Organization repositories
+│       ├── service/       # Business logic
+│       │   ├── payment/  # PaymentService, PaymentServiceImpl
+│       │   └── user/     # WebhookService, AuthorizationService
+│       └── exception/     # Custom exceptions
+│           └── payment/  # PaymentException
 ├── payment-service/      # Payment Service (Razorpay integration)
 ├── docker-compose.yml    # Orchestrates all services
 ├── .env                  # Environment variables (create this)

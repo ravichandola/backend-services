@@ -258,22 +258,35 @@ payment/
 │   ├── pom.xml
 │   └── Dockerfile
 │
-├── backend-service/          # Spring Boot Backend
+├── backend-service/          # Spring Boot Backend (SaaS model)
 │   ├── src/
 │   │   └── main/
 │   │       ├── java/com/demo/backend/
 │   │       │   ├── BackendApplication.java
+│   │       │   ├── config/          # Shared configuration
+│   │       │   │   ├── payment/     # Payment configs (RazorpayConfig)
+│   │       │   │   ├── user/        # User configs (future)
+│   │       │   │   ├── SecurityConfig.java
+│   │       │   │   ├── GatewayHeaderAuthenticationFilter.java
+│   │       │   │   ├── JacksonConfig.java
+│   │       │   │   ├── FlywayConfig.java
+│   │       │   │   └── DotenvApplicationContextInitializer.java
 │   │       │   ├── entity/          # JPA entities
+│   │       │   │   ├── payment/     # PaymentOrder, PaymentTransaction
+│   │       │   │   └── user/        # User, Organization, Role, Membership, etc.
 │   │       │   ├── repository/      # JPA repositories
+│   │       │   │   ├── payment/     # Payment repositories
+│   │       │   │   └── user/        # User/Organization repositories
 │   │       │   ├── service/         # Business logic
-│   │       │   │   ├── WebhookService.java
-│   │       │   │   └── AuthorizationService.java
+│   │       │   │   ├── payment/     # PaymentService, PaymentServiceImpl
+│   │       │   │   └── user/        # WebhookService, AuthorizationService
 │   │       │   ├── controller/      # REST controllers
-│   │       │   │   ├── WebhookController.java
-│   │       │   │   └── ApiController.java
-│   │       │   └── config/
-│   │       │       ├── SecurityConfig.java
-│   │       │       └── DotenvApplicationContextInitializer.java
+│   │       │   │   ├── payment/     # PaymentController
+│   │       │   │   └── user/        # WebhookController, ApiController
+│   │       │   ├── dto/             # Data Transfer Objects
+│   │       │   │   └── payment/     # Payment DTOs
+│   │       │   └── exception/       # Custom exceptions
+│   │       │       └── payment/     # PaymentException
 │   │       └── resources/
 │   │           ├── application.yml
 │   │           └── db/migration/     # Flyway migrations

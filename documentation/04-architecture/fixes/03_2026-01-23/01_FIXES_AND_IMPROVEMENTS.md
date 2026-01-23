@@ -180,7 +180,7 @@ This document logs all issues encountered and fixes applied during the database 
    ```
 
 **Files Changed:**
-- `backend-service/src/main/java/com/demo/backend/config/JacksonConfig.java` (new file)
+- `backend-service/src/main/java/com/demo/backend/config/JacksonConfig.java` (shared config)
 
 ---
 
@@ -236,9 +236,9 @@ This document logs all issues encountered and fixes applied during the database 
    ```
 
 **Files Changed:**
-- `backend-service/src/main/java/com/demo/backend/config/FlywayConfig.java` (new file)
-- `backend-service/src/main/java/com/demo/backend/controller/MigrationController.java` (new file)
-- `backend-service/src/main/java/com/demo/backend/config/SecurityConfig.java`
+- `backend-service/src/main/java/com/demo/backend/config/FlywayConfig.java` (shared config)
+- `backend-service/src/main/java/com/demo/backend/controller/MigrationController.java` (shared controller)
+- `backend-service/src/main/java/com/demo/backend/config/SecurityConfig.java` (shared config)
 
 **Result:**
 - Successfully executed 9 migrations via API endpoint
@@ -340,9 +340,9 @@ After running migrations, the following tables were created in Supabase:
 ## 📝 Files Created/Modified
 
 ### New Files:
-- `backend-service/src/main/java/com/demo/backend/config/JacksonConfig.java`
-- `backend-service/src/main/java/com/demo/backend/config/FlywayConfig.java`
-- `backend-service/src/main/java/com/demo/backend/controller/MigrationController.java`
+- `backend-service/src/main/java/com/demo/backend/config/JacksonConfig.java` (shared config)
+- `backend-service/src/main/java/com/demo/backend/config/FlywayConfig.java` (shared config)
+- `backend-service/src/main/java/com/demo/backend/controller/MigrationController.java` (shared controller)
 - `run-migrations.sql` (manual migration script)
 
 ### Modified Files:
@@ -354,7 +354,7 @@ After running migrations, the following tables were created in Supabase:
 - `backend-service/Dockerfile` - Updated to Java 25
 - `backend-service/src/main/resources/application.yml` - Updated logging levels
 - `src/main/resources/application.yml` - Standardized profile configuration
-- `backend-service/src/main/java/com/demo/backend/config/SecurityConfig.java` - Added migration endpoint permission
+- `backend-service/src/main/java/com/demo/backend/config/SecurityConfig.java` (shared config) - Added migration endpoint permission
 
 ---
 

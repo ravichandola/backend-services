@@ -28,7 +28,27 @@ Browser → Clerk (Auth) → API Gateway (JWT Validation) → Backend Service (B
 ```
 payment/
 ├── api-gateway/          # Spring Cloud Gateway with JWT validation
-├── backend-service/      # Spring Boot backend with webhooks & authorization
+├── backend-service/      # Spring Boot backend (SaaS model with domain-based structure)
+│   └── src/main/java/com/demo/backend/
+│       ├── config/       # Shared configuration
+│       │   ├── payment/  # Payment service configs (RazorpayConfig)
+│       │   └── user/     # User service configs (future)
+│       ├── controller/   # REST controllers
+│       │   ├── payment/  # PaymentController
+│       │   └── user/     # WebhookController, ApiController
+│       ├── dto/          # Data Transfer Objects
+│       │   └── payment/  # Payment DTOs
+│       ├── entity/       # JPA entities
+│       │   ├── payment/  # PaymentOrder, PaymentTransaction
+│       │   └── user/     # User, Organization, Role, Membership, etc.
+│       ├── repository/   # JPA repositories
+│       │   ├── payment/  # Payment repositories
+│       │   └── user/     # User/Organization repositories
+│       ├── service/       # Business logic
+│       │   ├── payment/  # PaymentService, PaymentServiceImpl
+│       │   └── user/     # WebhookService, AuthorizationService
+│       └── exception/     # Custom exceptions
+│           └── payment/  # PaymentException
 ├── docker-compose.yml    # Orchestrates all services
 ├── documentation/
 │   └── architecture/

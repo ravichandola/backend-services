@@ -48,12 +48,12 @@ public class GatewayHeaderAuthenticationFilter extends OncePerRequestFilter {
             );
             
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            log.debug("Authenticated request from gateway. User: {}, Org: {}", userId, orgId);
+            log.info("✅ Authenticated request from gateway. User: {}, Org: {}", userId, orgId);
         } else {
             // No X-User-Id header - request did not come through gateway with valid JWT
             // SecurityContext will remain unauthenticated
             // Spring Security will handle authorization based on SecurityConfig
-            log.debug("No X-User-Id header found - request not authenticated by gateway");
+            log.warn("⚠️ No X-User-Id header found - request not authenticated by gateway. Path: {}", request.getRequestURI());
         }
         
         filterChain.doFilter(request, response);

@@ -7,7 +7,11 @@ A complete enterprise-grade multi-tenant SaaS backend system with the following 
 ### ✅ 1. Project Structure
 
 - **api-gateway/** - Spring Cloud Gateway project
-- **backend-service/** - Spring Boot backend service
+- **backend-service/** - Spring Boot backend service (organized as SaaS model with domain-based structure)
+  - **Domain-based organization**: Components organized by service domain (`payment/` and `user/`)
+  - **Payment Service**: All payment-related components in `payment/` subdirectories
+  - **User Service**: All user/identity-related components in `user/` subdirectories
+  - **Shared Components**: Common configs and controllers at root level
 - Both projects are fully Dockerized and ready to run
 
 ### ✅ 2. Database Schema (Flyway Migrations)
@@ -24,8 +28,11 @@ Created 7 migration files:
 
 ### ✅ 3. Backend Service Implementation
 
+**Structure:** Domain-based SaaS model with `payment/` and `user/` subdirectories
+
 **Entities (JPA):**
 
+**User Service (`entity/user/`):**
 - `User` - User entity
 - `Organization` - Organization entity
 - `Role` - Role entity
@@ -34,8 +41,13 @@ Created 7 migration files:
 - `OrganizationEvent` - Organization event audit
 - `AuthSession` - Session tracking
 
+**Payment Service (`entity/payment/`):**
+- `PaymentOrder` - Payment order entity
+- `PaymentTransaction` - Payment transaction entity
+
 **Repositories:**
 
+**User Service (`repository/user/`):**
 - `UserRepository` - User data access
 - `OrganizationRepository` - Organization data access
 - `RoleRepository` - Role data access
@@ -43,8 +55,13 @@ Created 7 migration files:
 - `UserEventRepository` - Event audit access
 - `OrganizationEventRepository` - Organization event audit access
 
+**Payment Service (`repository/payment/`):**
+- `PaymentOrderRepository` - Payment order data access
+- `PaymentTransactionRepository` - Payment transaction data access
+
 **Services:**
 
+**User Service (`service/user/`):**
 - `WebhookService` - Processes Clerk webhook events
   - `processUserCreated()` - Creates user from webhook
   - `processUserUpdated()` - Updates user from webhook
@@ -57,8 +74,15 @@ Created 7 migration files:
   - `isAdmin()` - Check ADMIN role
   - `getMembership()` - Get membership details
 
+**Payment Service (`service/payment/`):**
+- `PaymentService` - Payment service interface
+- `PaymentServiceImpl` - Payment processing implementation
+  - `createOrder()` - Create Razorpay payment order
+  - `verifyPayment()` - Verify payment signature
+
 **Controllers:**
 
+**User Service (`controller/user/`):**
 - `WebhookController` - Clerk webhook receiver
   - Signature verification (HMAC SHA256)
   - Event routing
@@ -68,10 +92,34 @@ Created 7 migration files:
   - `GET /api/me` - Current user info
   - `GET /api/org/{orgId}/admin-data` - Admin endpoint (ADMIN role required)
 
+**Payment Service (`controller/payment/`):**
+- `PaymentController` - Payment API endpoints
+  - `POST /api/payments/create-order` - Create payment order
+  - `POST /api/payments/verify` - Verify payment
+
 **Configuration:**
 
+**Shared (`config/`):**
 - `SecurityConfig` - Spring Security configuration (trusts gateway)
+- `GatewayHeaderAuthenticationFilter` - Gateway header authentication
+- `JacksonConfig` - ObjectMapper configuration
+- `FlywayConfig` - Flyway migration configuration
 - `DotenvApplicationContextInitializer` - .env file support
+
+**Payment Service (`config/payment/`):**
+- `RazorpayConfig` - Razorpay client configuration
+
+**DTOs:**
+
+**Payment Service (`dto/payment/`):**
+- `CreateOrderRequest` - Payment order creation request
+- `CreateOrderResponse` - Payment order creation response
+- `VerifyPaymentRequest` - Payment verification request
+
+**Exceptions:**
+
+**Payment Service (`exception/payment/`):**
+- `PaymentException` - Payment-related exceptions
 
 ### ✅ 4. API Gateway Implementation
 
@@ -192,10 +240,12 @@ Created 7 migration files:
    - Admin data: `GET /api/org/{orgId}/admin-data` (ADMIN role)
 
 4. **Extend the system**:
-   - Add more API endpoints in `ApiController`
+   - **User Service**: Add more API endpoints in `controller/user/ApiController`
+   - **User Service**: Add more webhook event handlers in `service/user/WebhookService`
+   - **Payment Service**: Add more payment endpoints in `controller/payment/PaymentController`
+   - **Payment Service**: Extend payment logic in `service/payment/PaymentServiceImpl`
    - Add more roles in database
-   - Add business logic in services
-   - Add more webhook event handlers
+   - Add business logic in respective service layers
 
 ## Next Steps
 
@@ -213,14 +263,21 @@ Created 7 migration files:
 **Backend Service:**
 
 - 7 Flyway migration files
-- 7 Entity classes
-- 6 Repository interfaces
-- 2 Service classes
-- 2 Controller classes
-- 2 Configuration classes
+- **Entities**: 9 total (7 user service, 2 payment service)
+- **Repositories**: 8 total (6 user service, 2 payment service)
+- **Services**: 4 total (2 user service, 2 payment service)
+- **Controllers**: 3 total (2 user service, 1 payment service)
+- **DTOs**: 3 payment service DTOs
+- **Configuration**: 6 config classes (5 shared, 1 payment service)
+- **Exceptions**: 1 payment service exception
 - pom.xml
 - Dockerfile
 - application.yml
+
+**Structure Organization:**
+- Domain-based SaaS model with `payment/` and `user/` subdirectories
+- Each service has its own controllers, services, repositories, entities, DTOs, and exceptions
+- Shared components (SecurityConfig, MigrationController, etc.) remain at root level
 
 **API Gateway:**
 

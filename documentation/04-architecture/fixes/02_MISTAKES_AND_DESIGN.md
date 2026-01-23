@@ -1004,8 +1004,8 @@ docker rm <container-name>
 
 - **Architecture Document**: [ARCHITECTURE.md](./ARCHITECTURE.md)
 - **Gateway JWT Filter**: `api-gateway/src/main/java/com/demo/gateway/config/JwtAuthenticationFilter.java`
-- **Backend Auth Filter**: `backend-service/src/main/java/com/demo/backend/config/GatewayHeaderAuthenticationFilter.java`
-- **Security Config**: `backend-service/src/main/java/com/demo/backend/config/SecurityConfig.java`
+- **Backend Auth Filter**: `backend-service/src/main/java/com/demo/backend/config/GatewayHeaderAuthenticationFilter.java` (shared config)
+- **Security Config**: `backend-service/src/main/java/com/demo/backend/config/SecurityConfig.java` (shared config)
 - **Clerk Login Page**: `clerk-login.html`
 
 ---

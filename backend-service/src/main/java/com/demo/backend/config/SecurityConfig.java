@@ -9,17 +9,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-/**
- * Spring Security configuration for backend service
- * 
- * IMPORTANT: This service TRUSTS the API Gateway for authentication.
- * The gateway validates JWT tokens. This service does NOT validate JWT.
- * 
- * Security model:
- * - Webhook endpoint: No authentication (Clerk webhooks use signature verification)
- * - All other endpoints: Trust gateway headers (X-User-Id, X-Org-Id)
- * - In production, you might want to add an internal API key check
- */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -42,6 +31,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/payments/**").permitAll()
                 // Migration endpoints (for development/admin use)
                 .requestMatchers("/api/migrations/**").permitAll()
+                // Test endpoints (dev only - check in controller)
+                .requestMatchers("/api/test/**").permitAll()
                 // All other endpoints require authentication (trust gateway)
                 .anyRequest().authenticated()
             )
