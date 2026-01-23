@@ -140,17 +140,93 @@ Connections                   ttl     opn     rt1     rt5     p50     p90
 
 ## ⚠️ Important Notes
 
-### ngrok URL Changes
+### ngrok URL Changes Problem
 
-- **Free ngrok URLs change** every time you restart ngrok
-- **Update Clerk** webhook URL in Clerk Dashboard each time
-- **Paid ngrok:** For fixed URLs, upgrade to paid plan
+**Problem:** Free ngrok URLs change every time you restart ngrok, requiring you to update the Clerk webhook URL each time.
+
+**Impact:**
+- Every time you restart ngrok, you get a new URL
+- You must update Clerk webhook URL in Clerk Dashboard
+- This is tedious for regular development
+
+### Solutions: Avoid Updating URL Every Time
+
+#### Option 1: Paid ngrok (Recommended for Development)
+
+**Benefits:**
+- ✅ Fixed domain (e.g., `your-app.ngrok.io`)
+- ✅ Set once in Clerk, never change again
+- ✅ Perfect for regular development
+
+**Setup:**
+1. Upgrade to ngrok paid plan (~$8/month)
+2. Configure fixed domain in ngrok dashboard
+3. Use fixed domain: `ngrok http 8080 --domain=your-app.ngrok.io`
+4. Set Clerk webhook URL once: `https://your-app.ngrok.io/api/webhooks/clerk`
+5. Done! No more URL updates needed
+
+**Best for:** Regular development and testing
+
+#### Option 2: Cloudflare Tunnel (Free + Fixed URL)
+
+**Benefits:**
+- ✅ Free
+- ✅ Can get fixed subdomain
+- ✅ No URL changes
+
+**Setup:**
+```bash
+# Install cloudflared
+brew install cloudflare/cloudflare/cloudflared
+
+# Start tunnel
+cloudflared tunnel --url http://localhost:8080
+```
+
+**Best for:** Free fixed URL needed
+
+#### Option 3: Production Deployment (Best for Production)
+
+**Benefits:**
+- ✅ Fixed domain (e.g., `api.yourdomain.com`)
+- ✅ Permanent webhook URL
+- ✅ Production-ready
+
+**Options:**
+- AWS (EC2, ECS, Lambda)
+- Railway, Render, Vercel
+- Any cloud provider with fixed domain
+
+**Best for:** Production use
+
+#### Option 4: Free ngrok (Current Setup)
+
+**Limitations:**
+- ⚠️ URL changes every restart
+- ⚠️ Must update Clerk webhook URL each time
+- ⚠️ Tedious for regular development
+
+**When to use:** One-time testing or occasional use
+
+### Quick Comparison
+
+| Solution | Cost | Fixed URL | Setup Difficulty | Best For |
+|----------|------|-----------|------------------|----------|
+| **Free ngrok** | Free | ❌ No | Easy | One-time testing |
+| **Paid ngrok** | ~$8/month | ✅ Yes | Easy | Regular development |
+| **Cloudflare Tunnel** | Free | ✅ Yes | Medium | Free fixed URL |
+| **Production Server** | Varies | ✅ Yes | Complex | Production |
+
+### Recommendation
+
+- **For Development:** Use paid ngrok or Cloudflare Tunnel (one-time setup, no URL updates)
+- **For Production:** Deploy to server with fixed domain (permanent solution)
 
 ### Keep ngrok Running
 
 - **Keep the ngrok terminal open** while testing webhooks
 - If you close it, webhooks will stop working
-- Restart ngrok and update Clerk URL if needed
+- Restart ngrok and update Clerk URL if needed (unless using fixed URL solution)
 
 ### Webhook Security
 

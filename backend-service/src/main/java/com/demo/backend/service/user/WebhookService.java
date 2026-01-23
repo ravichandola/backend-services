@@ -137,7 +137,25 @@ public class WebhookService {
             String clerkMembershipId = data.get("id").asText();
             String clerkOrgId = data.get("organization_id").asText();
             String clerkUserId = data.get("public_user_data").get("user_id").asText();
-            String roleName = data.has("role") ? data.get("role").asText() : "USER";
+            
+            // Try multiple possible locations for role in Clerk webhook payload
+            final String roleName;
+            if (data.has("role")) {
+                roleName = data.get("role").asText();
+                log.debug("Found role in data.role: {}", roleName);
+            } else if (data.has("public_metadata") && data.get("public_metadata").has("role")) {
+                roleName = data.get("public_metadata").get("role").asText();
+                log.debug("Found role in data.public_metadata.role: {}", roleName);
+            } else if (data.has("public_user_data") && data.get("public_user_data").has("role")) {
+                roleName = data.get("public_user_data").get("role").asText();
+                log.debug("Found role in data.public_user_data.role: {}", roleName);
+            } else {
+                roleName = "USER"; // default
+                log.warn("Role not found in webhook payload, defaulting to USER. Payload structure: {}", data.toPrettyString());
+            }
+            
+            log.info("Processing organizationMembership.created - user: {}, org: {}, role: {}", 
+                clerkUserId, clerkOrgId, roleName);
             
             // Check if membership already exists (idempotency)
             if (membershipRepository.findByClerkMembershipId(clerkMembershipId).isPresent()) {
@@ -152,9 +170,10 @@ public class WebhookService {
                 .orElseThrow(() -> new RuntimeException("Organization not found: " + clerkOrgId));
             
             // Find role (default to USER if not found)
-            Role role = roleRepository.findByName(roleName.toUpperCase())
+            final String finalRoleName = roleName; // Make effectively final for lambda
+            Role role = roleRepository.findByName(finalRoleName.toUpperCase())
                 .orElseGet(() -> {
-                    log.warn("Role not found: {}, defaulting to USER", roleName);
+                    log.warn("Role not found: {}, defaulting to USER", finalRoleName);
                     return roleRepository.findByName("USER")
                         .orElseThrow(() -> new RuntimeException("Default USER role not found"));
                 });

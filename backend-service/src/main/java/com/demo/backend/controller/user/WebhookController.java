@@ -49,6 +49,38 @@ public class WebhookController {
             @RequestBody String payload,
             HttpServletRequest request) {
         
+        // Debug: Log all headers to see what we're receiving
+        log.debug("All request headers: {}", java.util.Collections.list(request.getHeaderNames()));
+        
+        // Fallback: Try to get headers directly from request if not found via annotation
+        // (Spring may not match case-insensitive headers correctly)
+        if (svixId == null) {
+            svixId = request.getHeader("Svix-Id");
+            log.debug("Tried Svix-Id header, got: {}", svixId != null ? "found" : "null");
+        }
+        if (svixTimestamp == null) {
+            svixTimestamp = request.getHeader("Svix-Timestamp");
+            log.debug("Tried Svix-Timestamp header, got: {}", svixTimestamp != null ? "found" : "null");
+        }
+        if (svixSignature == null) {
+            svixSignature = request.getHeader("Svix-Signature");
+            log.debug("Tried Svix-Signature header, got: {}", svixSignature != null ? "found" : "null");
+        }
+        
+        // Also try lowercase versions
+        if (svixId == null) {
+            svixId = request.getHeader("svix-id");
+        }
+        if (svixTimestamp == null) {
+            svixTimestamp = request.getHeader("svix-timestamp");
+        }
+        if (svixSignature == null) {
+            svixSignature = request.getHeader("svix-signature");
+        }
+        
+        log.info("Webhook headers - svixId: {}, svixTimestamp: {}, svixSignature: {}", 
+            svixId != null, svixTimestamp != null, svixSignature != null);
+        
         try {
             // Verify webhook signature
             if (!verifySignature(svixId, svixTimestamp, svixSignature, payload)) {
@@ -82,9 +114,10 @@ public class WebhookController {
                     webhookService.processOrganizationMembershipDeleted(event);
                     break;
                 default:
-                    log.warn("Unhandled webhook event type: {}", eventType);
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("Unhandled event type: " + eventType);
+                    // Ignore events we don't need (like email.created, session.*, etc.)
+                    // Return 200 OK so Clerk doesn't retry
+                    log.debug("Ignoring webhook event type: {} (not needed for user/org sync)", eventType);
+                    return ResponseEntity.ok("Event ignored: " + eventType);
             }
             
             return ResponseEntity.ok("Webhook processed successfully");
@@ -116,15 +149,32 @@ public class WebhookController {
         }
         
         if (svixId == null || svixTimestamp == null || svixSignature == null) {
-            log.warn("Missing required webhook headers");
+            log.warn("Missing required webhook headers. svixId: {}, svixTimestamp: {}, svixSignature: {}", 
+                svixId != null, svixTimestamp != null, svixSignature != null);
             return false;
         }
         
         try {
+            // Decode Clerk webhook secret (format: whsec_<base64-encoded-secret>)
+            byte[] secretBytes;
+            if (webhookSecret.startsWith("whsec_")) {
+                // Remove 'whsec_' prefix and base64 decode
+                String secretBase64 = webhookSecret.substring(6); // Remove "whsec_" prefix
+                secretBytes = Base64.getDecoder().decode(secretBase64);
+                log.debug("Decoded webhook secret from whsec_ format. Secret length: {} bytes", secretBytes.length);
+            } else {
+                // Assume secret is already in raw format (for backward compatibility)
+                secretBytes = webhookSecret.getBytes(StandardCharsets.UTF_8);
+                log.debug("Using webhook secret as-is (no whsec_ prefix). Secret length: {} bytes", secretBytes.length);
+            }
+            
+            log.debug("Verifying webhook signature. Secret length: {} bytes, svixId: {}, svixTimestamp: {}", 
+                secretBytes.length, svixId, svixTimestamp);
+            
             // Parse signature (format: v1,<signature>)
             String[] signatureParts = svixSignature.split(",");
             if (signatureParts.length != 2 || !signatureParts[0].equals("v1")) {
-                log.warn("Invalid signature format");
+                log.warn("Invalid signature format. Expected 'v1,<signature>', got: {}", svixSignature.substring(0, Math.min(50, svixSignature.length())));
                 return false;
             }
             
@@ -133,18 +183,26 @@ public class WebhookController {
             // Construct signed content: <id>.<timestamp>.<payload>
             String signedContent = svixId + "." + svixTimestamp + "." + payload;
             
-            // Compute expected signature
+            // Compute expected signature using decoded secret
             Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKeySpec = new SecretKeySpec(
-                webhookSecret.getBytes(StandardCharsets.UTF_8),
-                "HmacSHA256"
-            );
+            SecretKeySpec secretKeySpec = new SecretKeySpec(secretBytes, "HmacSHA256");
             mac.init(secretKeySpec);
             byte[] hash = mac.doFinal(signedContent.getBytes(StandardCharsets.UTF_8));
             String expectedSignature = Base64.getEncoder().encodeToString(hash);
             
+            log.debug("Signature comparison - Received (first 20): {}, Expected (first 20): {}", 
+                receivedSignature.substring(0, Math.min(20, receivedSignature.length())),
+                expectedSignature.substring(0, Math.min(20, expectedSignature.length())));
+            
             // Constant-time comparison to prevent timing attacks
-            return constantTimeEquals(receivedSignature, expectedSignature);
+            boolean isValid = constantTimeEquals(receivedSignature, expectedSignature);
+            
+            if (!isValid) {
+                log.warn("Signature mismatch. Received length: {}, Expected length: {}", 
+                    receivedSignature.length(), expectedSignature.length());
+            }
+            
+            return isValid;
             
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             log.error("Error verifying webhook signature", e);

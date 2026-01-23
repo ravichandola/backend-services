@@ -23,6 +23,11 @@ spring:
             # Strip /api prefix if backend doesn't expect it
             # Adjust based on your backend API structure
             - StripPrefix=0
+            # Preserve all headers (especially important for webhook headers like Svix-*)
+            - PreserveHostHeader
+      # Preserve all request headers when forwarding
+      default-filters:
+        - PreserveHostHeader
 
 server:
   port: 8080
