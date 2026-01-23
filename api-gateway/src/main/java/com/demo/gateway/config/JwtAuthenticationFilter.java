@@ -62,7 +62,33 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         // Allow webhook endpoints without authentication
         if (path.startsWith("/api/webhooks")) {
             log.debug("Allowing webhook endpoint without authentication: {}", path);
-            return chain.filter(exchange);
+            // Debug: Log all headers for webhook requests
+            log.debug("Webhook request headers: {}", request.getHeaders().keySet());
+            log.debug("Svix-Id header: {}", request.getHeaders().getFirst("Svix-Id"));
+            log.debug("Svix-Signature header: {}", request.getHeaders().getFirst("Svix-Signature"));
+            log.debug("Svix-Timestamp header: {}", request.getHeaders().getFirst("Svix-Timestamp"));
+            
+            // Explicitly preserve all Svix headers when forwarding to backend
+            // Spring Cloud Gateway should forward all headers by default, but we ensure it here
+            ServerHttpRequest.Builder requestBuilder = request.mutate();
+            
+            // Preserve Svix headers if they exist
+            String svixId = request.getHeaders().getFirst("Svix-Id");
+            String svixSignature = request.getHeaders().getFirst("Svix-Signature");
+            String svixTimestamp = request.getHeaders().getFirst("Svix-Timestamp");
+            
+            if (svixId != null) {
+                requestBuilder.header("Svix-Id", svixId);
+            }
+            if (svixSignature != null) {
+                requestBuilder.header("Svix-Signature", svixSignature);
+            }
+            if (svixTimestamp != null) {
+                requestBuilder.header("Svix-Timestamp", svixTimestamp);
+            }
+            
+            ServerHttpRequest modifiedRequest = requestBuilder.build();
+            return chain.filter(exchange.mutate().request(modifiedRequest).build());
         }
         
         // Allow health check

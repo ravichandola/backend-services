@@ -303,6 +303,31 @@ Connections                   ttl     opn     rt1     rt5     p50     p90
 
 - **ngrok URL Changes:** Free ngrok URLs change every time you restart ngrok
 - **Update Clerk:** You need to update webhook URL in Clerk Dashboard each time
+
+### 🎯 Avoiding URL Updates Every Time
+
+**Problem:** Free ngrok URLs change on every restart, requiring Clerk webhook URL updates.
+
+**Solutions:**
+
+#### Option 1: Paid ngrok (Recommended)
+- Fixed domain: `your-app.ngrok.io`
+- Set once in Clerk, never change again
+- Cost: ~$8/month
+- **Best for:** Regular development
+
+#### Option 2: Cloudflare Tunnel (Free)
+- Free fixed subdomain
+- No URL changes
+- Setup: `cloudflared tunnel --url http://localhost:8080`
+- **Best for:** Free fixed URL
+
+#### Option 3: Production Deployment
+- Fixed domain (e.g., `api.yourdomain.com`)
+- Permanent solution
+- **Best for:** Production use
+
+See [Webhook Setup Guide](./02_WEBHOOK_SETUP.md#solutions-avoid-updating-url-every-time) for detailed instructions.
 - **Paid ngrok:** For fixed URLs, upgrade to paid plan
 - **Keep ngrok Running:** Keep the ngrok terminal open while testing webhooks
 

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -64,6 +65,35 @@ public class AuthorizationService {
      */
     public boolean isAdmin(String clerkUserId, Long organizationId) {
         return hasRole(clerkUserId, organizationId, "ADMIN");
+    }
+    
+    /**
+     * Check if user is ADMIN in ANY organization
+     * Used for system-wide admin operations (e.g., fetching all users)
+     */
+    public boolean isAdminInAnyOrganization(String clerkUserId) {
+        Optional<User> userOpt = userRepository.findByClerkUserId(clerkUserId);
+        if (userOpt.isEmpty()) {
+            log.warn("User not found: {}", clerkUserId);
+            return false;
+        }
+        
+        Long userId = userOpt.get().getId();
+        log.debug("Checking admin status for user ID: {}", userId);
+        
+        List<Membership> adminMemberships = membershipRepository
+            .findAdminMembershipsByUserId(userId);
+        
+        log.debug("Found {} admin memberships for user ID: {}", adminMemberships.size(), userId);
+        
+        boolean isAdmin = !adminMemberships.isEmpty();
+        if (isAdmin) {
+            log.info("User {} is ADMIN in {} organization(s)", clerkUserId, adminMemberships.size());
+        } else {
+            log.warn("User {} (ID: {}) is NOT admin - no ADMIN memberships found", clerkUserId, userId);
+        }
+        
+        return isAdmin;
     }
     
     /**

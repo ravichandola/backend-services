@@ -28,4 +28,11 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
         @Param("orgId") Long orgId,
         @Param("roleName") String roleName
     );
+    
+    /**
+     * Find all ADMIN memberships for a user (across all organizations)
+     * Used to check if user has admin privileges in any organization
+     */
+    @Query("SELECT m FROM Membership m WHERE m.user.id = :userId AND m.role.name = 'ADMIN'")
+    List<Membership> findAdminMembershipsByUserId(@Param("userId") Long userId);
 }
