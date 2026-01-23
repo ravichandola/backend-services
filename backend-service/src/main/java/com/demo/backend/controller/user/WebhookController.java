@@ -90,40 +90,110 @@ public class WebhookController {
             }
             
             // Parse webhook payload
+            log.info("Parsing webhook payload. Payload length: {} bytes", payload.length());
             JsonNode event = objectMapper.readTree(payload);
-            String eventType = event.get("type").asText();
-            JsonNode eventData = event.get("data");
             
-            log.info("Received Clerk webhook event: {} (svix-id: {})", eventType, svixId);
-            
-            // Route to appropriate handler
-            switch (eventType) {
-                case "user.created":
-                    webhookService.processUserCreated(event);
-                    break;
-                case "user.updated":
-                    webhookService.processUserUpdated(event);
-                    break;
-                case "organization.created":
-                    webhookService.processOrganizationCreated(event);
-                    break;
-                case "organizationMembership.created":
-                    webhookService.processOrganizationMembershipCreated(event);
-                    break;
-                case "organizationMembership.deleted":
-                    webhookService.processOrganizationMembershipDeleted(event);
-                    break;
-                default:
-                    // Ignore events we don't need (like email.created, session.*, etc.)
-                    // Return 200 OK so Clerk doesn't retry
-                    log.debug("Ignoring webhook event type: {} (not needed for user/org sync)", eventType);
-                    return ResponseEntity.ok("Event ignored: " + eventType);
+            if (!event.has("type")) {
+                log.error("Webhook payload missing 'type' field. Payload: {}", payload);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Missing 'type' field in webhook payload");
             }
             
-            return ResponseEntity.ok("Webhook processed successfully");
+            String eventType = event.get("type").asText();
+            JsonNode eventData = event.has("data") ? event.get("data") : null;
+            
+            log.info("Received Clerk webhook event: {} (svix-id: {})", eventType, svixId);
+            log.debug("Webhook payload structure - type: {}, has data: {}", eventType, eventData != null);
+            
+            // Route to appropriate handler
+            try {
+                switch (eventType) {
+                    case "user.created":
+                        log.info("Routing to processUserCreated handler");
+                        webhookService.processUserCreated(event);
+                        log.info("processUserCreated completed successfully");
+                        break;
+                    case "user.updated":
+                        log.info("Routing to processUserUpdated handler");
+                        webhookService.processUserUpdated(event);
+                        log.info("processUserUpdated completed successfully");
+                        break;
+                    case "organization.created":
+                        log.info("Routing to processOrganizationCreated handler");
+                        webhookService.processOrganizationCreated(event);
+                        log.info("processOrganizationCreated completed successfully");
+                        break;
+                    case "organization.updated":
+                        log.info("Routing to processOrganizationUpdated handler");
+                        webhookService.processOrganizationUpdated(event);
+                        log.info("processOrganizationUpdated completed successfully");
+                        break;
+                    case "organization.deleted":
+                        log.info("Routing to processOrganizationDeleted handler");
+                        webhookService.processOrganizationDeleted(event);
+                        log.info("processOrganizationDeleted completed successfully");
+                        break;
+                    case "organizationMembership.created":
+                        log.info("Routing to processOrganizationMembershipCreated handler");
+                        webhookService.processOrganizationMembershipCreated(event);
+                        log.info("processOrganizationMembershipCreated completed successfully");
+                        break;
+                    case "organizationMembership.updated":
+                        log.info("Routing to processOrganizationMembershipUpdated handler");
+                        webhookService.processOrganizationMembershipUpdated(event);
+                        log.info("processOrganizationMembershipUpdated completed successfully");
+                        break;
+                    case "organizationMembership.deleted":
+                        log.info("Routing to processOrganizationMembershipDeleted handler");
+                        webhookService.processOrganizationMembershipDeleted(event);
+                        log.info("processOrganizationMembershipDeleted completed successfully");
+                        break;
+                    case "email.created":
+                        log.info("Routing to processEmailCreated handler");
+                        webhookService.processEmailCreated(event);
+                        log.info("processEmailCreated completed successfully");
+                        break;
+                    case "role.created":
+                        log.info("Routing to processRoleCreated handler");
+                        webhookService.processRoleCreated(event);
+                        log.info("processRoleCreated completed successfully");
+                        break;
+                    case "role.updated":
+                        log.info("Routing to processRoleUpdated handler");
+                        webhookService.processRoleUpdated(event);
+                        log.info("processRoleUpdated completed successfully");
+                        break;
+                    case "role.deleted":
+                        log.info("Routing to processRoleDeleted handler");
+                        webhookService.processRoleDeleted(event);
+                        log.info("processRoleDeleted completed successfully");
+                        break;
+                    case "payment.attempt":
+                    case "paymentAttempt":
+                        log.info("Routing to processPaymentAttempt handler");
+                        webhookService.processPaymentAttempt(event);
+                        log.info("processPaymentAttempt completed successfully");
+                        break;
+                    default:
+                        // Ignore events we don't need (like session.*, etc.)
+                        // Return 200 OK so Clerk doesn't retry
+                        log.debug("Ignoring webhook event type: {} (not needed for user/org sync)", eventType);
+                        return ResponseEntity.ok("Event ignored: " + eventType);
+                }
+                
+                log.info("Webhook event {} processed successfully", eventType);
+                return ResponseEntity.ok("Webhook processed successfully");
+                
+            } catch (RuntimeException e) {
+                log.error("Error processing webhook event {}: {}", eventType, e.getMessage(), e);
+                // Still return 200 to prevent Clerk from retrying (if it's a data issue, not a system issue)
+                // But log the error for debugging
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error processing webhook: " + e.getMessage());
+            }
             
         } catch (Exception e) {
-            log.error("Error processing webhook", e);
+            log.error("Error parsing or processing webhook. Payload: {}", payload, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error processing webhook: " + e.getMessage());
         }
